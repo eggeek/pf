@@ -173,36 +173,6 @@ warthog::scenario_manager::load_gppc_scenario(std::ifstream& infile)
 
     // sanity check
     if(experiments_.size() == 0) { return; }
-
-    warthog::gridmap gm(experiments_.at(0)->map().c_str());
-    for(uint32_t i = 0; i < experiments_.size(); i++)
-    {
-        if(experiments_.at(i)->map() != experiments_.at(0)->map())
-        {
-            std::cerr << "err; scenario file contains instances for multiple different maps\n";
-            exit(EINVAL);
-        }
-        if(gm.header_height() != experiments_.at(i)->mapheight())
-        {
-            std::cerr << "err; instance " << i+1 << " map-height value doesn't match actual map height\n";
-            exit(EINVAL);
-        }
-        if(gm.header_width() != experiments_.at(i)->mapwidth())
-        {
-            std::cerr << "err; instance " << i+1 << " map-width value doesn't match actual map width\n";
-            exit(EINVAL);
-        }
-        if(gm.get_label(gm.to_padded_id(experiments_.at(i)->startx(), experiments_.at(i)->starty())) == 0)
-        {
-            std::cerr << "err; instance " << i+1 << " has non-traversable start location\n";
-            exit(EINVAL);
-        }
-        if(gm.get_label(gm.to_padded_id(experiments_.at(i)->goalx(), experiments_.at(i)->goaly())) == 0)
-        {
-            std::cerr << "err; instance " << i+1 << " has non-traversable goal location\n";
-            exit(EINVAL);
-        }
-    }
 }
 
 void 
