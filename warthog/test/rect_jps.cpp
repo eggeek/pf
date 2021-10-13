@@ -19,7 +19,8 @@
 
 using namespace warthog::rectscan;
 using namespace std;
-string testfile;
+string Testfile;
+bool Verbose = false;
 const vector<string> desc = {
   "NORTH", "SOUTH", "EAST", "WEST",
   "NORTHEAST", "NORTHWEST", "SOUTHEAST", "SOUTHWEST"
@@ -230,7 +231,7 @@ TEST_CASE("query") {
     warthog::scenario_manager* scenmgr = new warthog::scenario_manager();
     scenmgr->load_scenario(spath.c_str());
     cerr << "Running map: " << mpath << endl;
-    run_scen(*scenmgr, mpath, false);
+    run_scen(*scenmgr, mpath, Verbose);
     delete scenmgr;
   }
 }
@@ -238,7 +239,10 @@ TEST_CASE("query") {
 int main(int argv, char* args[]) {
   using namespace Catch::clara;
   Catch::Session session;
-  auto cli = session.cli() | Opt(testfile, "testfile")["--input"]("");
+  auto cli = 
+      Opt(Testfile, "testfile")["--input"]("")
+    | Opt( Verbose )["-v"]["--verbose"]("verbose")
+    | session.cli();
   session.cli(cli);
   int resCode = session.applyCommandLine(argv, args);
   if (resCode != 0)
