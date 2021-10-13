@@ -14,7 +14,6 @@
 
 #include "getopt.h"
 #include "catch.hpp"
-#include "test-rect.hpp"
 
 #include <iomanip>
 #include <sstream>

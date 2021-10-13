@@ -18,11 +18,11 @@ namespace warthog {
 namespace rectscan {
 using namespace std;
 
-inline int octile_dist(int x0, int y0, int x1, int y1) {
+inline double octile_dist(int x0, int y0, int x1, int y1) {
   int dx = abs(x0 - x1);
   int dy = abs(y0 - y1);
   int diag = min(dx, dy);
-  return diag * warthog::ROOT_TWO + (dx + dy - (diag<<1)) * warthog::ONE;
+  return diag * warthog::DBL_ROOT_TWO + (double)(dx + dy - (diag<<1));
 }
 
 const int INF = numeric_limits<int>::max();
@@ -88,7 +88,7 @@ class rect_jump_point_locator
       costs_.resize(jpts_.size());
       for (int i=0; i<(int)jpts_.size(); i++) {
         int x, y;
-        map_->to_xy(jpts_[i] & IDMASK, x, y);
+        map_->to_xy(jpts_[i], x, y);
         costs_[i] = octile_dist(x, y, _curx, _cury);
       }
       assert(intervals_h.empty());

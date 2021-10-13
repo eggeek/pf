@@ -301,6 +301,13 @@ class RectMap {
     return res;
   }
 
+  inline int get_label(const int id) {
+    int x, y;
+    this->to_xy(id, x, y);
+    int padid = gmap.to_padded_id(x, y);
+    return gmap.get_label(padid);
+  }
+
   // return the mask vertical, i.e. up,down
   inline int get_maskw(const int& x, const int& y) {
     int padid = gmap.to_padded_id(x, y);

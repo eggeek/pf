@@ -6,12 +6,13 @@
 // @author: shizhe
 // @created: 14/08/2021
 
+#include "forward.h"
 #include "rectmap.h"
-#include "blocklist.h"
 #include "jps.h"
 #include "problem_instance.h"
 #include "rect_jump_point_locator.h"
 #include "search_node.h"
+#include "expansion_policy.h"
 
 #include "stdint.h"
 
@@ -19,98 +20,72 @@ namespace warthog
 {
 namespace rectscan {
 
-class rect_expansion_policy 
+class rect_expansion_policy: public expansion_policy
 {
 	public:
 		rect_expansion_policy(RectMap* map);
-		~rect_expansion_policy();
+		virtual ~rect_expansion_policy();
 
-		// create a search_node object from a state description
-		// (in this case, an id)
-		inline search_node*
-		generate(uint32_t node_id)
-		{
-			return nodepool_->generate(node_id);
-		}
-
-
-		// reset the policy and discard all generated nodes
-		inline void
-		clear()
-		{
-			reset();
-			nodepool_->clear();
-		}
-
-
-		void 
+		virtual void 
 		expand(search_node*, problem_instance*);
 
-		inline void
-		first(search_node*& ret, cost_t& cost)
-		{
-			which_ = 0;
-			ret = neighbours_[which_];
-			cost = jpl_->get_costs()[which_];
+		virtual inline size_t
+		mem() {
+      return expansion_policy::mem() +
+          sizeof(*this) + map_->mem() + jpl_->mem();
 		}
 
-		inline bool
-		has_next()
-		{
-			if((which_+1) < num_neighbours_) { return true; }
-			return false;
-		}
+    virtual void
+    get_xy(warthog::sn_id_t node_id, int32_t& x, int32_t& y); 
 
-		inline void
-		n(search_node*& ret, cost_t& cost)
-		{
-			ret = neighbours_[which_];
-			cost = jpl_->get_costs()[which_];
-		}
+    virtual warthog::search_node* 
+    generate_start_node(warthog::problem_instance* pi);
 
-		inline void
-		next(search_node*& ret, cost_t& cost)
-		{
-			if(which_ < num_neighbours_)
-			{
-				which_++;
-			}
-			ret = neighbours_[which_];
-			cost = jpl_->get_costs()[which_];
-		}
-
-		inline uint32_t
-		mem()
-		{
-			return sizeof(*this) + map_->mem() + nodepool_->mem() + jpl_->mem();
-		}
-
-		uint32_t 
-		mapwidth()
-		{
-			return map_->mapw;
-		}
-
-    rect_jump_point_locator* get_locator() {
-      return this->jpl_;
-    }
+    virtual warthog::search_node*
+    generate_target_node(warthog::problem_instance* pi);
 
 	private:
 		rectscan::RectMap* map_;
-		blocklist* nodepool_;
 		rect_jump_point_locator* jpl_;
-		uint32_t which_;
-		uint32_t num_neighbours_;
-		vector<search_node*> neighbours_;
 
-		inline void
-		reset()
-		{
-			which_ = 0;
-			num_neighbours_ = 0;
-			neighbours_.clear();
-      jpl_->reset();
-		}
+    inline warthog::jps::direction
+    compute_direction(
+            uint32_t n1_id, uint32_t n2_id)
+    {
+        if(n1_id == warthog::GRID_ID_MAX) { return warthog::jps::NONE; }
+
+        int32_t x, y, x2, y2;
+        warthog::helpers::index_to_xy(n1_id, map_->mapw, x, y);
+        warthog::helpers::index_to_xy(n2_id, map_->mapw, x2, y2);
+        warthog::jps::direction dir = warthog::jps::NONE;
+        if(y2 == y)
+        {
+            if(x2 > x)
+                dir = warthog::jps::EAST;
+            else
+                dir = warthog::jps::WEST;
+        }
+        else if(y2 < y)
+        {
+            if(x2 == x)
+                dir = warthog::jps::NORTH;
+            else if(x2 < x)
+                dir = warthog::jps::NORTHWEST;
+            else // x2 > x
+                dir = warthog::jps::NORTHEAST;
+        }
+        else // y2 > y 
+        {
+            if(x2 == x)
+                dir = warthog::jps::SOUTH;
+            else if(x2 < x)
+                dir = warthog::jps::SOUTHWEST;
+            else // x2 > x
+                dir = warthog::jps::SOUTHEAST;
+        }
+        assert(dir != warthog::jps::NONE);
+        return dir;
+    }
 
 };
 

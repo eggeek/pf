@@ -48,6 +48,9 @@ namespace warthog
 	static const uint32_t FNV32_offset_basis = 2166136261;
 	static const uint32_t FNV32_prime = 16777619;
 
+  // graph mapper              0, 1, 2, 3,  4,  5, 6, 7
+  static const int16_t dx[] = {0, 0, 1, -1, 1, -1, 1, -1};
+  static const int16_t dy[] = {-1, 1, 0, 0, -1, -1, 1, 1};
 }
 
 #endif
