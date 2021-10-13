@@ -52,7 +52,7 @@ void rectlocator::_scan(int node_id, Rect* cur_rect, int dx, int dy) {
   while (true) {
     // when the cur rect contains the goal
     if (cur_rect->rid == _goal_rid) {
-      jpts_.push_back(_encode_pdir(map_->to_id(curx, cury), dx, dy));
+      jpts_.push_back(map_->to_id(curx, cury));
       break;
     }
     this->scan_cnt++;
@@ -64,7 +64,7 @@ void rectlocator::_scan(int node_id, Rect* cur_rect, int dx, int dy) {
       {
         bool res = _find_jpt(cur_rect, cure, curx, cury, dx, dy, jpid);
         if (res) {
-          jpts_.push_back(_encode_pdir((uint32_t)jpid, dx, dy));
+          jpts_.push_back((uint32_t)jpid);
           return;
         }
       }
@@ -200,7 +200,7 @@ void rectlocator::_scanDiag(
 
     // if reach the rect that contains the goal
     if (rect->rid == _goal_rid) {
-      jpts_.push_back(_encode_pdir(map_->to_id(curx, cury), dx, dy));
+      jpts_.push_back(map_->to_id(curx, cury));
       break;
     }
 
@@ -229,7 +229,7 @@ void rectlocator::_scanDiag(
         int node_id = INF;
         if (_find_jpt(rect, dx>0?eposition::E: eposition::W, 
                       curx, cury, 0, dy, node_id)) {
-          jpts_.push_back(_encode_pdir((uint32_t)node_id, 0, dy));
+          jpts_.push_back((uint32_t)node_id);
           dx>0?xub--: xlb++;
         }
       }
@@ -237,7 +237,7 @@ void rectlocator::_scanDiag(
         int node_id = INF;
         if (_find_jpt(rect, dy>0?eposition::S: eposition::N, 
                       curx, cury, dx, 0, node_id)) {
-          jpts_.push_back(_encode_pdir((uint32_t)node_id, dx, 0));
+          jpts_.push_back((uint32_t)node_id);
           dy>0?yub--: ylb++;
         }
       }
@@ -274,7 +274,7 @@ inline bool rectlocator::_scanLR(Rect* r, int curx, int cury, int dx, int dy) {
     bool onR = r->disLR(rdirect::R, dx, dy, curx, cury) == 0;
     if ( onL || onR) {
       if (_find_jpt(r, r2e.at({dx, dy, onL?rdirect::L: rdirect::R}), curx, cury, dx, dy, node_id)) {
-        jpts_.push_back(_encode_pdir((uint32_t)node_id, dx, dy));
+        jpts_.push_back((uint32_t)node_id);
         return true;
       }
     }
@@ -357,7 +357,7 @@ inline void rectlocator::_pushIntervalF(
           else if (rL > _goaly) y=rL;
           else y=rR;
         }
-        jpts_.push_back(_encode_pdir(map_->to_id(x, y), dx, dy));
+        jpts_.push_back(map_->to_id(x, y));
         continue;
       }
 

@@ -57,34 +57,21 @@ class rect_expansion_policy: public expansion_policy
         int32_t x, y, x2, y2;
         warthog::helpers::index_to_xy(n1_id, map_->mapw, x, y);
         warthog::helpers::index_to_xy(n2_id, map_->mapw, x2, y2);
-        warthog::jps::direction dir = warthog::jps::NONE;
-        if(y2 == y)
+        int32_t dx = abs(x2 - x);
+        int32_t dy = abs(y2 - y);
+
+        if(dx > dy)
         {
             if(x2 > x)
-                dir = warthog::jps::EAST;
-            else
-                dir = warthog::jps::WEST;
+            { return warthog::jps::EAST; }
+
+            return warthog::jps::WEST;
         }
-        else if(y2 < y)
-        {
-            if(x2 == x)
-                dir = warthog::jps::NORTH;
-            else if(x2 < x)
-                dir = warthog::jps::NORTHWEST;
-            else // x2 > x
-                dir = warthog::jps::NORTHEAST;
-        }
-        else // y2 > y 
-        {
-            if(x2 == x)
-                dir = warthog::jps::SOUTH;
-            else if(x2 < x)
-                dir = warthog::jps::SOUTHWEST;
-            else // x2 > x
-                dir = warthog::jps::SOUTHEAST;
-        }
-        assert(dir != warthog::jps::NONE);
-        return dir;
+
+        if(y2 > y) 
+        { return warthog::jps::SOUTH; }
+
+        return warthog::jps::NORTH;
     }
 
 };

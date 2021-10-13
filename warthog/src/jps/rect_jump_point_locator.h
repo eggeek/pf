@@ -53,7 +53,7 @@ class rect_jump_point_locator
         _goal_rid = map_->get_rid(_goalx, _goaly);
       }
       if (rect->rid == _goal_rid) {
-        jpts_.push_back(_encode_pdir(cur_goal_id_, 0, 0));
+        jpts_.push_back(cur_goal_id_);
       }
       else {
         switch(d) {
@@ -142,23 +142,6 @@ class rect_jump_point_locator
     void _pushInterval(queue<Interval>& intervals, int dx, int dy);
 
     void _scan(int node_id, Rect* cur_rect, int dx, int dy);
-
-    inline uint32_t _encode_pdir(uint32_t node_id, int dx, int dy) {
-      jps::direction d = jps::direction::NONE;
-      switch (dx) {
-        case -1: d = jps::direction::WEST; break;
-        case 1: d = jps::direction::EAST; break;
-        default:
-          switch (dy) {
-            case -1: d = jps::direction::NORTH; break;
-            case 1: d = jps::direction::SOUTH; break;
-            default:
-              break;
-          }
-      }
-		  *(((uint8_t*)&node_id)+3) = d;
-      return node_id;
-    }
 };
 
 }}
