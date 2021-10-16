@@ -18,11 +18,13 @@
 #include "greedy_depth_first_search.h"
 #include "gridmap.h"
 #include "gridmap_expansion_policy.h"
+#include "rectmap.h"
 #include "jps_expansion_policy.h"
 #include "jps2_expansion_policy.h"
 #include "jps2plus_expansion_policy.h"
 #include "jps4c_expansion_policy.h"
 #include "jpsplus_expansion_policy.h"
+#include "rect_expansion_policy.h"
 #include "ll_expansion_policy.h"
 #include "manhattan_heuristic.h"
 #include "octile_heuristic.h"
@@ -204,6 +206,7 @@ run_jps2(warthog::scenario_manager& scenmgr, std::string mapname, std::string al
 	std::cerr << "done. total memory: "<< astar.mem() + scenmgr.mem() << "\n";
 }
 
+
 void
 run_jps(warthog::scenario_manager& scenmgr, std::string mapname, std::string alg_name)
 {
@@ -236,6 +239,25 @@ run_jps4c(warthog::scenario_manager& scenmgr, std::string mapname, std::string a
 	   	warthog::jps4c_expansion_policy,
         warthog::pqueue_min> 
             astar(&heuristic, &expander, &open);
+
+    run_experiments(&astar, alg_name, scenmgr, 
+            verbose, checkopt, std::cout);
+	std::cerr << "done. total memory: "<< astar.mem() + scenmgr.mem() << "\n";
+}
+
+void
+run_rect(warthog::scenario_manager& scenmgr, std::string mapname, std::string alg_name)
+{
+  warthog::rectscan::RectMap map(mapname.c_str());
+	warthog::rectscan::rect_expansion_policy expander(&map);
+	warthog::octile_heuristic heuristic(map.mapw, map.maph);
+  warthog::pqueue_min open;
+
+	warthog::flexible_astar<
+		warthog::octile_heuristic,
+	  warthog::rectscan::rect_expansion_policy,
+    warthog::pqueue_min> 
+    astar(&heuristic, &expander, &open);
 
     run_experiments(&astar, alg_name, scenmgr, 
             verbose, checkopt, std::cout);
@@ -558,7 +580,10 @@ main(int argc, char** argv)
     {
         run_jpsplus(scenmgr, mapname, alg);
     }
-
+    else if (alg == "rect")
+    {
+      run_rect(scenmgr, mapname, alg);
+    }
     else if(alg == "jps2")
     {
         run_jps2(scenmgr, mapname, alg);
