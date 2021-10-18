@@ -55,7 +55,7 @@ void rectlocator::_scan(int node_id, Rect* cur_rect, int dx, int dy) {
       jpts_.push_back(map_->to_id(curx, cury));
       break;
     }
-    this->scan_cnt++;
+    jps::scan_cnt++;
     switch (curp) {
       // base case
       // on verticle border
@@ -196,7 +196,7 @@ void rectlocator::_scanDiag(
   xlb = xub = curx;
   ylb = yub = cury;
   while (rect != nullptr) {
-    this->scan_cnt++;
+    jps::scan_cnt++;
 
     // if reach the rect that contains the goal
     if (rect->rid == _goal_rid) {
@@ -326,7 +326,7 @@ inline void rectlocator::_pushIntervalF(
     if (found) {
       lb = nxtL, ub = nxtU, curr = nxtRect;
       found = false;
-      this->scan_cnt++;
+      jps::scan_cnt++;
     }
     int sidx = bs();
     for (int i=sidx; i<(int)curr->adj[cure].size(); i++) {
@@ -406,7 +406,7 @@ void rectlocator::_pushInterval(queue<Interval>& intervals, int dx, int dy) {
   while (!intervals.empty()) {
     Interval c = intervals.front(); intervals.pop();
     lb = c.lb, ub = c.ub;
-    this->scan_cnt++;
+    jps::scan_cnt++;
     ax = c.r->axis(cure);
     // is lb on L/R border
     if (_scanLR(c.r, dx?ax: lb, dx?lb: ax, dx, dy)) 

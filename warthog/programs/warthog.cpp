@@ -117,7 +117,7 @@ run_experiments(warthog::search* algo, std::string alg_name,
 {
 	std::cout 
         << "id\talg\texpanded\tinserted\tupdated\ttouched\tsurplus"
-        << "\tnanos\tpcost\tplen\tmap\n";
+        << "\tnanos\tpcost\tplen\tscnt\tmap\n";
 	for(unsigned int i=0; i < scenmgr.num_experiments(); i++)
 	{
 		warthog::experiment* exp = scenmgr.get_experiment(i);
@@ -126,8 +126,8 @@ run_experiments(warthog::search* algo, std::string alg_name,
 		uint32_t goalid = exp->goaly() * exp->mapwidth() + exp->goalx();
         warthog::problem_instance pi(startid, goalid, verbose);
         warthog::solution sol;
-
-        algo->get_path(pi, sol);
+    warthog::jps::scan_cnt = 0;
+    algo->get_path(pi, sol);
 
 		out
             << i<<"\t" 
@@ -140,6 +140,7 @@ run_experiments(warthog::search* algo, std::string alg_name,
             << sol.time_elapsed_nano_ << "\t"
             << sol.sum_of_edge_costs_ << "\t" 
             << (sol.path_.size()-1) << "\t" 
+            << warthog::jps::scan_cnt << "\t"
             << scenmgr.last_file_loaded() 
             << std::endl;
 

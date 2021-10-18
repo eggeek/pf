@@ -317,3 +317,5 @@ warthog::jps::create_corner_map(warthog::gridmap* gm)
 //    assert(dir != warthog::jps::NONE);
 //    return dir;
 //}
+
+int warthog::jps::scan_cnt = 0;

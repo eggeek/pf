@@ -196,6 +196,7 @@ create_jump_point_graph(warthog::gridmap* gm);
 warthog::gridmap*
 create_corner_map(warthog::gridmap* gm);
 
+extern int scan_cnt;
 }
 }
 
