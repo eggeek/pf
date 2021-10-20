@@ -53,7 +53,7 @@ warthog::jps2plus_expansion_policy::expand(
 		// bits 0-23 store the id of the jump point
 		// bits 24-31 store the direction to the parent
 		uint32_t jp_id = jp_ids_.at(i);
-		warthog::search_node* mynode = generate(jp_id & warthog::jps::JPS_ID_MASK);
+		warthog::search_node* mynode = generate(jp_id);
         add_neighbour(mynode, costs_.at(i));
 	}
 }
@@ -99,36 +99,19 @@ warthog::jps2plus_expansion_policy::compute_direction(
     int32_t x, y, x2, y2;
     warthog::helpers::index_to_xy(n1_id, map_->width(), x, y);
     warthog::helpers::index_to_xy(n2_id, map_->width(), x2, y2);
-    warthog::jps::direction dir = warthog::jps::NONE;
-    if(y2 == y)
+    int32_t dx = abs(x2 - x);
+    int32_t dy = abs(y2 - y);
+
+    if(dx > dy)
     {
         if(x2 > x)
-            dir = warthog::jps::EAST;
-        else
-            dir = warthog::jps::WEST;
+        { return warthog::jps::EAST; }
+
+        return warthog::jps::WEST;
     }
-    else if(y2 < y)
-    {
-        if(x2 == x)
-            dir = warthog::jps::NORTH;
-        else if(x2 < x)
-            //dir = warthog::jps::NORTHWEST;
-            dir = warthog::jps::WEST;
-        else // x2 > x
-            //dir = warthog::jps::NORTHEAST;
-            dir = warthog::jps::EAST;
-    }
-    else // y2 > y 
-    {
-        if(x2 == x)
-            dir = warthog::jps::SOUTH;
-        else if(x2 < x)
-            //dir = warthog::jps::SOUTHWEST;
-            dir = warthog::jps::WEST;
-        else // x2 > x
-            //dir = warthog::jps::SOUTHEAST;
-            dir = warthog::jps::EAST;
-    }
-    assert(dir != warthog::jps::NONE);
-    return dir;
+
+    if(y2 > y) 
+    { return warthog::jps::SOUTH; }
+
+    return warthog::jps::NORTH;
 }
