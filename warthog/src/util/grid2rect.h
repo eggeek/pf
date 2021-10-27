@@ -19,6 +19,7 @@ well.
 #include <iomanip>
 #include <queue>
 #include <algorithm>
+#include "quadtree.h"
 
 using namespace std;
 
@@ -427,7 +428,81 @@ namespace rectgen {
           }
       }
   }
-  
+
+  bool traversable_area(int xl, int yl, int xu, int yu) {
+    for (int x=xl; x<=xu; x++)
+    for (int y=yl; y<=yu; y++) 
+      if (!map_traversable[y][x]) 
+        return false;
+    return true;
+  }
+
+  void extract_traversable(int xl, int xu, int yl, int yu, int idx, QuadTree& t) {
+    if (xl > xu || yl > yu) return;
+    assert(idx < (int)t.nodes.size());
+    assert(t.nodes[idx].id == idx);
+    if (t.nodes[idx].c == color::BLACK) return;
+    if (t.nodes[idx].c == color::WHITE) {
+      assert(traversable_area(xl, yl, xu, yu));
+      final_rectangles.push_back({yl, xl, xu-xl+1, yu-yl+1});
+      return;
+    }
+    assert((idx << 2 | 3 ) < (int)t.nodes.size());
+    int mx = (xl + xu) >> 1;
+    int my = (yl + yu) >> 1;
+    int mask = 0;
+    for (int i=0; i<4; i++) if (t.nodes[idx<<2|i].c == color::WHITE) mask |= 1<<i;
+    switch (mask) {
+      case (1<<0) | (1<<1): 
+        assert(traversable_area(xl, yl, xu, my));
+        final_rectangles.push_back({yl, xl, xu-xl+1, my-yl+1});
+        extract_traversable(mx+1, xu, my+1, yu, idx<<2|2, t);
+        extract_traversable(xl,   mx, my+1, yu, idx<<2|3, t);
+        return;
+      case (1<<0) | (1<<3): 
+        assert(traversable_area(xl, yl, mx, yu));
+        final_rectangles.push_back({yl, xl, mx-xl+1, yu-yl+1});
+        extract_traversable(mx+1, xu, yl,   my, idx<<2|1, t);
+        extract_traversable(mx+1, xu, my+1, yu, idx<<2|2, t);
+        return;
+      case (1<<1) | (1<<2): 
+        assert(traversable_area(mx+1, yl, xu, yu));
+        final_rectangles.push_back({yl, mx+1, xu-mx, yu-yl+1});
+        extract_traversable(xl,   mx, yl,   my, idx<<2|0, t);
+        extract_traversable(xl,   mx, my+1, yu, idx<<2|3, t);
+        return;
+      case (1<<2) | (1<<3):
+        assert(traversable_area(xl, my+1, xu, yu));
+        final_rectangles.push_back({my+1, xl, xu-xl+1, yu-my});
+        extract_traversable(xl,   mx, yl,   my, idx<<2|0, t);
+        extract_traversable(mx+1, xu, yl,   my, idx<<2|1, t);
+        return;
+      default: 
+        extract_traversable(xl,   mx, yl,   my, idx<<2|0, t); // c1
+        extract_traversable(mx+1, xu, yl,   my, idx<<2|1, t); // c2
+        extract_traversable(mx+1, xu, my+1, yu, idx<<2|2, t); // c3
+        extract_traversable(xl,   mx, my+1, yu, idx<<2|3, t); // c4
+        return;
+    }
+  }
+
+  void make_rectangles_from_quadtree() {
+    cur_rect_id = 0;
+    cur_vertex_id = 0;
+    final_vertices.clear();
+    final_rectangles.clear();
+    QuadTree t(map_width, map_height);
+    for (int y=0; y<map_height; y++)
+    for (int x=0; x<map_width; x++) if (!map_traversable[y][x]) {
+      t.insertBlack(0, map_width-1, 0, map_height-1, x, y, 1);
+    }
+    for (int y=0; y<map_height; y++)
+    for (int x=0; x<map_width; x++) {
+      color c = t.query(0, map_width-1, 0, map_height-1, x, y, 1);
+      assert(map_traversable[y][x] == (c == color::WHITE));
+    }
+    extract_traversable(0, map_width-1, 0, map_height-1, 1, t);
+  }
 
   void make_rectangles()
   {
