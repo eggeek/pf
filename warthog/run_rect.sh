@@ -1,58 +1,65 @@
 #!/usr/bin/bash
+
 maps=(
-  ./data/endmaps_1.map
-  ./data/endmaps_2.map
-  ./data/endmaps_3.map
-  ./data/endmaps_4.map
-  ./data/endmaps_5.map
-  ./data/endmaps_6.map
-  ./data/endmaps_7.map
-  ./data/endmaps_8.map
+  # ../maps/dao/arena.map
+  ../maps/iron/scene_sp_endmaps.map
+  ../maps/starcraft/GreenerPastures.map
+  ../maps/starcraft/CatwalkAlley.map
 )
 
 scens=(
-  ./data/endmaps_1.map.scen
-  ./data/endmaps_2.map.scen
-  ./data/endmaps_3.map.scen
-  ./data/endmaps_4.map.scen
-  ./data/endmaps_5.map.scen
-  ./data/endmaps_6.map.scen
-  ./data/endmaps_7.map.scen
-  ./data/endmaps_8.map.scen
+  # ../scenarios/movingai/dao/arena.map.scen
+  ../scenarios/movingai/iron/scene_sp_endmaps.map.scen
+  ../scenarios/movingai/starcraft/GreenerPastures.map.scen
+  ../scenarios/movingai/starcraft/CatwalkAlley.map.scen
 )
 
-algs=(rect jps2)
+algs=(rect jps2 jps2+)
 exec="./build/fast/bin/warthog"
 
 function exp() {
-  for (( i=0; i<${#maps[@]}; i++ )); do
-    mpath=${maps[$i]}
-    spath=${scens[$i]}
-    mapname=$(basename -- $mpath)
-    for alg in "${algs[@]}"; do
-      outpath="./output/$alg"
-      mkdir -p $outpath
-      cmd="$exec --scen ${spath} --map ${mpath} --alg $alg > $outpath/$mapname.log"
-      echo $cmd
-      eval "$cmd"
+  for (( j=0; j<${#maps[@]}; j++ )); do
+    name=$(basename ${maps[$j]} .map)
+    for i in {1..8}; do
+      spath="./data/${name}_$i.map.scen"
+      mpath="./data/${name}_$i.map"
+      for alg in "${algs[@]}"; do
+        outpath="./output/$alg"
+        mkdir -p $outpath
+        cmd="$exec --scen ${spath} --map ${mpath} --alg $alg > $outpath/${name}_$i.log"
+        echo $cmd
+        eval "$cmd"
+      done
     done
   done
 }
 
 function gen() {
-  for i in {1..8}; do
-    cmd="./scripts/gen_scalemap.py scale ../maps/iron/scene_sp_endmaps.map $i > data/endmaps_$i.map"
-    echo $cmd
-    eval $cmd
-    cmd="./scripts/gen_scalemap.py scale-scen ../scenarios/movingai/iron/scene_sp_endmaps.map.scen $i > data/endmaps_$i.map.scen"
-    echo $cmd
-    eval $cmd
+  for (( j=0; j<${#maps[@]}; j++ )); do
+    map=${maps[$j]}
+    scen=${scens[$j]}
+    name=$(basename $map .map)
+    for i in {1..8}; do
+      cmd="./scripts/gen_scalemap.py scale $map $i > data/${name}_$i.map"
+      echo $cmd
+      eval $cmd
+      cmd="./scripts/gen_scalemap.py scale-scen $scen $i > data/${name}_$i.map.scen"
+      echo $cmd
+      eval $cmd
+    done
   done
+}
+
+function clean() {
+  rm -f data/*.jps+
+  rm -rf output
 }
 
 case "$1" in
   exp) exp ;;
+  cexp) clean && exp ;;
   gen) gen ;;
+  clean) clean ;; 
   *)
     echo $"Usage: $0 {exp|gen}"
     exit 1
