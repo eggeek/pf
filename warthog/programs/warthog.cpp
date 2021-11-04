@@ -53,6 +53,8 @@ int verbose = 0;
 // display program help on startup
 int print_help = 0;
 
+double preproc_nano = 0;
+
 void
 help()
 {
@@ -117,7 +119,7 @@ run_experiments(warthog::search* algo, std::string alg_name,
 {
 	std::cout 
         << "id\talg\texpanded\tinserted\tupdated\ttouched\tsurplus"
-        << "\tnanos\tpcost\tplen\tscnt\tmap\n";
+        << "\tnanos\tpcost\tplen\tscnt\tpreproc\tmap\n";
 	for(unsigned int i=0; i < scenmgr.num_experiments(); i++)
 	{
 		warthog::experiment* exp = scenmgr.get_experiment(i);
@@ -141,6 +143,7 @@ run_experiments(warthog::search* algo, std::string alg_name,
             << sol.sum_of_edge_costs_ << "\t" 
             << (sol.path_.size()-1) << "\t" 
             << warthog::jps::scan_cnt << "\t"
+            << preproc_nano << "\t"
             << scenmgr.last_file_loaded() 
             << std::endl;
 
@@ -172,8 +175,12 @@ run_jpsplus(warthog::scenario_manager& scenmgr, std::string mapname, std::string
 void
 run_jps2plus(warthog::scenario_manager& scenmgr, std::string mapname, std::string alg_name)
 {
+    warthog::timer t;
     warthog::gridmap map(mapname.c_str());
+  t.start();
 	warthog::jps2plus_expansion_policy expander(&map);
+  t.stop();
+  preproc_nano = t.elapsed_time_nano();
 	warthog::octile_heuristic heuristic(map.width(), map.height());
     warthog::pqueue_min open;
 
@@ -249,8 +256,12 @@ run_jps4c(warthog::scenario_manager& scenmgr, std::string mapname, std::string a
 void
 run_rect(warthog::scenario_manager& scenmgr, std::string mapname, std::string alg_name)
 {
+  warthog::timer t;
   warthog::rectscan::RectMap map(mapname.c_str());
+  t.start();
 	warthog::rectscan::rect_expansion_policy expander(&map);
+  t.stop();
+  preproc_nano = t.elapsed_time_nano();
 	warthog::octile_heuristic heuristic(map.mapw, map.maph);
   warthog::pqueue_min open;
 
