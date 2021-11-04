@@ -9,13 +9,16 @@ rmap::RectMap(const char* mapfile, bool make): gmap(mapfile) {
     init(mapfile, make);
 }
 
-void rmap::init(const char* mapfile, bool make) {
+void rmap::init(const char* mapfile, bool make, bool quadtree) {
   // generate rectangle from original map
   if (make) {
     ifstream fin;
     fin.open(mapfile);
     rectgen::read_map(fin);
-    rectgen::make_rectangles();
+    if (quadtree)
+      rectgen::make_rectangles_from_quadtree();
+    else
+      rectgen::make_rectangles();
     maph = rectgen::map_height;
     mapw = rectgen::map_width;
   }

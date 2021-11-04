@@ -437,6 +437,21 @@ namespace rectgen {
     return true;
   }
 
+  void extract_all(int xl, int xu, int yl, int yu, int idx, QuadTree& t) {
+    if (xl > xu || yl > yu) return;
+    if (t.nodes[idx].c == color::WHITE) {
+      final_rectangles.push_back({yl , xl, xu-xl+1, yu-yl+1});
+    }
+    if (t.nodes[idx].c == color::BLACK) return;
+    if (xl == xu && yl == yu) return;
+    int mx = (xl + xu) >> 1;
+    int my = (yl + yu) >> 1;
+    extract_all(xl,   mx, yl,   my, idx<<2|0, t); // c1
+    extract_all(mx+1, xu, yl,   my, idx<<2|1, t); // c2
+    extract_all(mx+1, xu, my+1, yu, idx<<2|2, t); // c3
+    extract_all(xl,   mx, my+1, yu, idx<<2|3, t); // c4
+  }
+
   void extract_traversable(int xl, int xu, int yl, int yu, int idx, QuadTree& t) {
     if (xl > xu || yl > yu) return;
     assert(idx < (int)t.nodes.size());
@@ -467,13 +482,15 @@ namespace rectgen {
         return;
       case (1<<1) | (1<<2): 
         assert(traversable_area(mx+1, yl, xu, yu));
-        final_rectangles.push_back({yl, mx+1, xu-mx, yu-yl+1});
+        if (mx+1 <= xu)
+          final_rectangles.push_back({yl, mx+1, xu-mx, yu-yl+1});
         extract_traversable(xl,   mx, yl,   my, idx<<2|0, t);
         extract_traversable(xl,   mx, my+1, yu, idx<<2|3, t);
         return;
       case (1<<2) | (1<<3):
         assert(traversable_area(xl, my+1, xu, yu));
-        final_rectangles.push_back({my+1, xl, xu-xl+1, yu-my});
+        if (my+1 <= yu)
+          final_rectangles.push_back({my+1, xl, xu-xl+1, yu-my});
         extract_traversable(xl,   mx, yl,   my, idx<<2|0, t);
         extract_traversable(mx+1, xu, yl,   my, idx<<2|1, t);
         return;
@@ -493,15 +510,79 @@ namespace rectgen {
     final_rectangles.clear();
     QuadTree t(map_width, map_height);
     for (int y=0; y<map_height; y++)
-    for (int x=0; x<map_width; x++) if (!map_traversable[y][x]) {
+    for (int x=0; x<map_width; x++) if (map_traversable[y][x] == false) {
       t.insertBlack(0, map_width-1, 0, map_height-1, x, y, 1);
     }
-    for (int y=0; y<map_height; y++)
-    for (int x=0; x<map_width; x++) {
-      color c = t.query(0, map_width-1, 0, map_height-1, x, y, 1);
-      assert(map_traversable[y][x] == (c == color::WHITE));
+    // in quadtree (x, y) is the top-left corner of the empty rectangle
+    extract_all(0, map_width-1, 0, map_height-1, 1, t);
+    priority_queue<SearchNode> pq;
+    for (FinalRect& fr: final_rectangles) {
+      int y = fr.y + fr.height - 1;
+      int x = fr.x + fr.width - 1;
+      // convert to bottom-right corner
+      grid_rectangles[y][x] = {
+        fr.width, fr.height,
+        get_heuristic(fr.width, fr.height)
+      };
+      assert(fr.width > 0 && fr.height > 0);
+      pq.push({y, x, get_heuristic(fr.width, fr.height)});
     }
-    extract_traversable(0, map_width-1, 0, map_height-1, 1, t);
+    final_rectangles.clear();
+    while (!pq.empty())
+    {
+      SearchNode node = pq.top(); pq.pop();
+      const Rect r = get_best_rect_lazy(node.y, node.x);
+      if (node.h != r.h)
+      {
+          // Not the right node.
+          // Push it on so we can get to it later if r.h isn't 0.
+          if (r.h != 0)
+          {
+              pq.push({node.y, node.x, r.h});
+          }
+          continue;
+      }
+      // Use r.
+      // Set all those rectangle ids, and set non-traversable.
+      // Also invalidate the rectangles.
+      for (int y = node.y; y > node.y - r.height; y--)
+      {
+          for (int x = node.x; x > node.x - r.width; x--)
+          {
+              assert(map_traversable[y][x] == true);
+              rectangle_id[y][x] = cur_rect_id;
+              map_traversable[y][x] = false;
+          }
+      }
+      {
+          const int max_y = node.y + 1;
+          const int max_x = node.x + 1;
+          const int min_y = max_y - r.height;
+          const int min_x = max_x - r.width;
+          // Set vertices.
+          const Vertex corners[] = {
+              {min_y, min_x},
+              {max_y, min_x},
+              {max_y, max_x},
+              {min_y, max_x}
+          };
+          for (int i = 0; i < 4; i++)
+          {
+              const Vertex& p = corners[i];
+              int& id_ref = vertex_id[p.y][p.x];
+              if (id_ref != -1)
+              {
+                  continue;
+              }
+              id_ref = cur_vertex_id;
+              final_vertices.push_back(p);
+              cur_vertex_id++;
+          }
+          // Push final rectangle.
+          final_rectangles.push_back({min_y, min_x, r.width, r.height});
+      }
+      cur_rect_id++;
+    }
   }
 
   void make_rectangles()

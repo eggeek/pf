@@ -271,7 +271,7 @@ class RectMap {
     rects.shrink_to_fit();
   }
 
-  void init(const char* mapfile, bool make=true);
+  void init(const char* mapfile, bool make=true, bool quadtree=false);
   void make_rectangles_from_file(const char* mapfile);
 
   inline const char* filename() { return this->_filename.c_str();}

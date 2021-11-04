@@ -30,6 +30,7 @@ TEST_CASE("gen") {
   vector<pair<string, string>> cases = {
     {"../maps/dao/arena.map", "./test/rects/arena.rect"},
     {"../maps/rooms/64room_000.map", "./test/rects/64room.rect"},
+    {"../maps/bgmaps/AR0042SR.map", "./test/rects/AR0042SR.rect"},
   };
   RectMap rectmap;
   for (auto& each: cases) {
@@ -39,6 +40,7 @@ TEST_CASE("gen") {
     ofstream out;
     out.open(writeto.c_str());
     rectmap.print(out);
+    cout << "#rects: " << rectmap.rects.size() << endl;
     out.close();
   }
 }
