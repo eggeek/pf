@@ -377,4 +377,4 @@ class RectMap {
   void init_rects(); 
 };
 
-}};
+}}

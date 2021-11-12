@@ -279,7 +279,7 @@ inline bool rectlocator::_scanLR(Rect* r, int curx, int cury, int dx, int dy) {
       }
     }
     return false;
-  };
+  }
 
 // Precondition:
 // interval [lb, ub] is on F border of curr

@@ -24,10 +24,47 @@
 #include "helpers.h"
 
 #include <climits>
+#include <immintrin.h>
+#include <tmmintrin.h>
 #include "stdint.h"
 
 namespace warthog
 {
+
+union SIMD_tiles {
+  __m256i v;
+  uint32_t tiles[8];
+};
+
+
+inline void lftshift32bit(SIMD_tiles& s, SIMD_tiles& d) {
+  // s << 32
+  // high ------------> low
+  // [s.r7, s.r6, ... s.r0] -> [s.r6, s.r5, ..., s.r0, 0]
+  d.tiles[0] = 0;
+  d.tiles[1] = s.tiles[0];
+  d.tiles[2] = s.tiles[1];
+  d.tiles[3] = s.tiles[2];
+  d.tiles[4] = s.tiles[3];
+  d.tiles[5] = s.tiles[4];
+  d.tiles[6] = s.tiles[5];
+  d.tiles[7] = s.tiles[6];
+}
+
+inline void rhtshift32bit(SIMD_tiles& s, SIMD_tiles& d) {
+  // s >> 32
+  // high ------------> low
+  // [s.r7, s.r6, ..., s.r0] -> [0, s.r6, s.r5, ..., s.r1]
+  d.tiles[7] = 0;
+  d.tiles[0] = s.tiles[1];
+  d.tiles[1] = s.tiles[2];
+  d.tiles[2] = s.tiles[3];
+  d.tiles[3] = s.tiles[4];
+  d.tiles[4] = s.tiles[5];
+  d.tiles[5] = s.tiles[6];
+  d.tiles[6] = s.tiles[7];
+  d.tiles[7] = 0;
+}
 
 const uint32_t GRID_ID_MAX = (uint32_t)warthog::SN_ID_MAX;
 class gridmap
@@ -132,6 +169,30 @@ class gridmap
 			tiles[2] = (uint32_t)(*((uint64_t*)(db_+pos3)) >> (bit_offset));
 		}
 
+    inline void
+    get_neighbours_32bit_simd(uint32_t grid_id_p, SIMD_tiles& s) {
+			uint32_t bit_offset = (grid_id_p & warthog::DBWORD_BITS_MASK);
+			uint32_t dbindex = grid_id_p >> warthog::LOG2_DBWORD_BITS;
+      uint32_t pos[8] = {
+        dbindex - dbwidth_,      // <---- the extra row above to compute jps
+        dbindex,                 // <---- current row (grid_id_p)
+        dbindex + dbwidth_ * 1,  //
+        dbindex + dbwidth_ * 2,  //
+        dbindex + dbwidth_ * 3,  //
+        dbindex + dbwidth_ * 4,  //
+        dbindex + dbwidth_ * 5,  // <---- the 6th row
+        dbindex + dbwidth_ * 6   // <---- the extra below to compute jps
+      };
+      s.tiles[0] = (uint32_t)(*((uint64_t*)(db_+pos[0])) >> (bit_offset));
+      s.tiles[1] = (uint32_t)(*((uint64_t*)(db_+pos[1])) >> (bit_offset));
+      s.tiles[2] = (uint32_t)(*((uint64_t*)(db_+pos[2])) >> (bit_offset));
+      s.tiles[3] = (uint32_t)(*((uint64_t*)(db_+pos[3])) >> (bit_offset));
+      s.tiles[4] = (uint32_t)(*((uint64_t*)(db_+pos[4])) >> (bit_offset));
+      s.tiles[5] = (uint32_t)(*((uint64_t*)(db_+pos[5])) >> (bit_offset));
+      s.tiles[6] = (uint32_t)(*((uint64_t*)(db_+pos[6])) >> (bit_offset));
+      s.tiles[7] = (uint32_t)(*((uint64_t*)(db_+pos[7])) >> (bit_offset));
+    }
+
 		// similar to get_neighbours_32bit but grid_id_p is placed into the
 		// upper bit of the return value. this variant is useful when jumping
 		// toward smaller memory addresses (i.e. west instead of east).
@@ -159,6 +220,31 @@ class gridmap
 			tiles[1] = (uint32_t)(*((uint64_t*)(db_+pos2)) >> (bit_offset+1));
 			tiles[2] = (uint32_t)(*((uint64_t*)(db_+pos3)) >> (bit_offset+1));
 		}
+
+    inline void
+    get_neighbours_upper_32bit_simd(uint32_t grid_id_p, SIMD_tiles& s) {
+			uint32_t bit_offset = (grid_id_p & warthog::DBWORD_BITS_MASK);
+			uint32_t dbindex = grid_id_p >> warthog::LOG2_DBWORD_BITS;
+			dbindex -= 4;
+      uint32_t pos[8] = {
+        dbindex - dbwidth_,      // <---- the extra row above to compute jps
+        dbindex,                 // <---- current row (grid_id_p)
+        dbindex + dbwidth_ * 1,  //
+        dbindex + dbwidth_ * 2,  //
+        dbindex + dbwidth_ * 3,  //
+        dbindex + dbwidth_ * 4,  //
+        dbindex + dbwidth_ * 5,  // <---- the 6th row
+        dbindex + dbwidth_ * 6   // <---- the extra below to compute jps
+      };
+      s.tiles[0] = (uint32_t)(*((uint64_t*)(db_+pos[0])) >> (bit_offset+1));
+      s.tiles[1] = (uint32_t)(*((uint64_t*)(db_+pos[1])) >> (bit_offset+1));
+      s.tiles[2] = (uint32_t)(*((uint64_t*)(db_+pos[2])) >> (bit_offset+1));
+      s.tiles[3] = (uint32_t)(*((uint64_t*)(db_+pos[3])) >> (bit_offset+1));
+      s.tiles[4] = (uint32_t)(*((uint64_t*)(db_+pos[4])) >> (bit_offset+1));
+      s.tiles[5] = (uint32_t)(*((uint64_t*)(db_+pos[5])) >> (bit_offset+1));
+      s.tiles[6] = (uint32_t)(*((uint64_t*)(db_+pos[6])) >> (bit_offset+1));
+      s.tiles[7] = (uint32_t)(*((uint64_t*)(db_+pos[7])) >> (bit_offset+1));
+    }
 
 		// get the label associated with the padded coordinate pair (x, y)
 		inline bool
