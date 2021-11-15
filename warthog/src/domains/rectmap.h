@@ -212,6 +212,11 @@ class Rect {
     return dy * (ax - curx) + dx * (ax - cury);
   }
 
+  inline bool onLR(rdirect p, int dx, int dy, int curx, int cury) const {
+    int ax = axis(r2e.at({dx, dy, p}));
+    return ((dy & (ax ^ curx))) == 0 && ((dx & (ax ^ cury))) == 0;
+  }
+
   inline void get_range(const int& eid, int& lb, int& ub) const {
     switch (eid) {
       case 0: 

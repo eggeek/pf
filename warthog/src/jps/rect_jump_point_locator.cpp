@@ -8,99 +8,6 @@
 typedef warthog::rectscan::rect_jump_point_locator rectlocator;
 using namespace std;
 
-void rectlocator::_scan(int node_id, Rect* cur_rect, int dx, int dy) {
-
-  rdirect curp;
-  eposition cure;
-  int curx, cury;
-  map_->to_xy(node_id, curx, cury);
-  cure = cur_rect->pos(curx, cury);
-
-  int jpid;
-  bool onL = false, onR = false;
-
-  onL = cur_rect->disLR(rdirect::L, dx, dy, curx, cury) == 0;
-  onR = cur_rect->disLR(rdirect::R, dx, dy, curx, cury) == 0;
-
-  auto move_fwd = [&]() {
-    cure = r2e.at({dx, dy, rdirect::F});
-    int d2F = cur_rect->disF(dx, dy, curx, cury);
-    switch (dx) {
-      case 0:
-        cury += dy * d2F;
-        break;
-      default:
-        curx += dx * d2F;
-        break;
-    }
-  };
-  
-  // inside, then move to the forward edge
-  if (cure == eposition::I) {
-    move_fwd();
-  }
-
-  // we need to explicitly check jump points if on border L/R
-  if (onL)
-    cure = r2e.at({dx, dy, rdirect::L});
-  else if (onR)
-    cure = r2e.at({dx, dy, rdirect::R});
-
-  assert(e2r.find({dx, dy, cure}) != e2r.end());
-  curp = e2r.at({dx, dy, cure});
-
-  while (true) {
-    // when the cur rect contains the goal
-    if (cur_rect->rid == _goal_rid) {
-      jpts_.push_back(map_->to_id(curx, cury));
-      break;
-    }
-    jps::scan_cnt++;
-    switch (curp) {
-      // base case
-      // on verticle border
-      case rdirect::L:
-      case rdirect::R:
-      {
-        bool res = _find_jpt(cur_rect, cure, curx, cury, dx, dy, jpid);
-        if (res) {
-          jpts_.push_back((uint32_t)jpid);
-          return;
-        }
-      }
-      // cross the rect
-      case rdirect::B:
-      {
-        // move to the end of the border in this direction
-        // and going to move to adjacent rect
-        move_fwd();
-        curp = rdirect::F;
-      }
-      // move to adjacent rect
-      case rdirect::F:
-      {
-        int rid = map_->get_rid(curx+dx, cury+dy);
-        if (rid == -1)  // no adjacent, dead end
-          return;
-
-        // move to adjacent rect in (dx, dy)
-        curx += dx, cury += dy;
-        cure = r2e.at({dx, dy, rdirect::B});
-        cur_rect = &(map_->rects[rid]);
-        onL = cur_rect->disLR(rdirect::L, dx, dy, curx, cury) == 0;
-        onR = cur_rect->disLR(rdirect::R, dx, dy, curx, cury) == 0;
-
-        // we need to explicitly check jump points if on border L/R
-        if (onL)
-          cure = r2e.at({dx, dy, rdirect::L});
-        else if (onR)
-          cure = r2e.at({dx, dy, rdirect::R});
-        curp = e2r.at({dx, dy, cure});
-      } break;
-    }
-  }
-}
-
 bool rectlocator::_find_jpt(Rect* cur_rect, eposition cure, 
     int curx, int cury, int dx, int dy, int& node_id) {
   int x, y;
@@ -172,111 +79,27 @@ bool rectlocator::_find_jpt(Rect* cur_rect, eposition cure,
   return res;
 }
 
-void rectlocator::_scanDiag(
-  int node_id, Rect* rect, int dx, int dy) {
-  int curx, cury, vertD, horiD, d, xlb, xub, ylb, yub;
-
-  auto move_diag = [&]() {
-    if (map_->get_rid(curx+dx, cury) != -1 &&
-        map_->get_rid(curx, cury+dy) != -1 &&
-        map_->get_rid(curx+dx, cury+dy) != -1) {
-      curx += dx, cury += dy;
-      node_id += map_->mapw * dy + dx;
-      return map_->get_rect(curx, cury);
-    }
-    else return (rectscan::Rect*)nullptr;
-  };
-
-
-  assert(intervals_h.size() == 0);
-  assert(intervals_v.size() == 0);
-
-  map_->to_xy(node_id, curx, cury);
-  rect = move_diag();
-  xlb = xub = curx;
-  ylb = yub = cury;
-  while (rect != nullptr) {
-    jps::scan_cnt++;
-
-    // if reach the rect that contains the goal
-    if (rect->rid == _goal_rid) {
-      jpts_.push_back(map_->to_id(curx, cury));
-      break;
-    }
-
-    // try to move interval (xlb, xub) to the front, 
-    // find jpt if the path is on L/R border
-    if (_scanLR(rect, dx>0?xlb: xub, cury, 0, dy))
-      dx>0?xlb++: xub--;
-    // try to move interval (ylb, yub) to the front
-    // find jpt if the path is on L/R border
-    if (_scanLR(rect, curx, dy>0?ylb: yub, dx, 0))
-      dy>0?ylb++: yub--;
-
-    vertD = rect->disF(0, dy, curx, cury);
-    horiD = rect->disF(dx, 0, curx, cury);
-    d  = min(vertD, horiD);
-    dx > 0? xub += d: xlb -= d;
-    dy > 0? yub += d: ylb -= d;
-
-    curx += dx*d;
-    cury += dy*d;
-    node_id += map_->mapw * d*dy + d*dx;
-
-    // scan on border
-    if (d > 0) {
-      if (vertD >= horiD) {
-        int node_id = INF;
-        if (_find_jpt(rect, dx>0?eposition::E: eposition::W, 
-                      curx, cury, 0, dy, node_id)) {
-          jpts_.push_back((uint32_t)node_id);
-          dx>0?xub--: xlb++;
-        }
-      }
-      if (horiD >= vertD) {
-        int node_id = INF;
-        if (_find_jpt(rect, dy>0?eposition::S: eposition::N, 
-                      curx, cury, dx, 0, node_id)) {
-          jpts_.push_back((uint32_t)node_id);
-          dy>0?yub--: ylb++;
-        }
-      }
-    }
-    else {
-      if (xlb <= xub && _scanLR(rect, curx, cury, 0, dy))
-        dx>0?xub--: xlb++;
-      if (ylb <= yub && _scanLR(rect, curx, cury, dx, 0))
-        dy>0?yub--: ylb++;
-    }
-    
-    Rect* nxt_rect = move_diag();
-
-    if (xlb <= xub)
-      _pushIntervalF(intervals_h, rect, nxt_rect, xlb, xub, 0, dy);
-    if (ylb <= yub) 
-      _pushIntervalF(intervals_v, rect, nxt_rect, ylb, yub, dx, 0);
-    // reset [xlb, xub] and [ylb, yub] if there are invalid
-    // otherwise extend ub/lb to curx/cury
-    if (xlb > xub || xlb == INF) xlb = xub = curx;
-    else dx > 0? xub=curx: xlb=curx;
-    if (ylb > yub || ylb == INF) ylb = yub = cury;
-    else dy > 0? yub=cury: ylb=cury;
-
-    rect = nxt_rect;
-  }
-  _pushInterval(intervals_h, 0, dy);
-  _pushInterval(intervals_v, dx, 0);
-}
-
 inline bool rectlocator::_scanLR(Rect* r, int curx, int cury, int dx, int dy) {
-    int node_id = INF;
-    bool onL = r->disLR(rdirect::L, dx, dy, curx, cury) == 0;
-    bool onR = r->disLR(rdirect::R, dx, dy, curx, cury) == 0;
+    // int node_id = INF;
+    bool onL = r->onLR(rdirect::L, dx, dy, curx, cury);
+    bool onR = r->onLR(rdirect::R, dx, dy, curx, cury);
     if ( onL || onR) {
-      if (_find_jpt(r, r2e.at({dx, dy, onL?rdirect::L: rdirect::R}), curx, cury, dx, dy, node_id)) {
-        jpts_.push_back((uint32_t)node_id);
+      // if (r->w * r->h > minstep) {
+      //   if (_find_jpt(r, r2e.at({dx, dy, onL?rdirect::L: rdirect::R}), curx, cury, dx, dy, node_id)) {
+      //     jpts_.push_back((uint32_t)node_id);
+      //     return true;
+      //   }
+      //   else return false;
+      // }
+      // else {
+        int sidx = jpts_.size();
+        jpl->jump(jps::v2d(dx, dy), map_->gmap.to_padded_id(curx, cury), padded_goal_id,
+          jpts_, costs_);
+        for (int i=sidx; i<(int)jpts_.size(); i++) {
+          jpts_[i] = map_->gmap.to_unpadded_id(jpts_[i]);
+        }
         return true;
-      }
+      // }
     }
     return false;
   }
@@ -407,13 +230,24 @@ void rectlocator::_pushInterval(queue<Interval>& intervals, int dx, int dy) {
     Interval c = intervals.front(); intervals.pop();
     lb = c.lb, ub = c.ub;
     jps::scan_cnt++;
+    // the coordinate of interval [lb, ub]
+    // dy=0 then ax is y-axis otherwise it is x-axis
     ax = c.r->axis(cure);
     // is lb on L/R border
     if (_scanLR(c.r, dx?ax: lb, dx?lb: ax, dx, dy)) 
       lb++;
     if (c.lb != c.ub && _scanLR(c.r, dx?ax: ub, dx?ub: ax, dx, dy))
       ub--;
-    if (lb <= ub)
-      _pushIntervalF(intervals, c.r, nullptr, lb, ub, dx, dy);
+    if (lb <= ub) {
+      // cure^1 is the position of orthogonal edge
+      // if it is short, we will use normal block based scanning
+      if (c.r->len(eposition(cure^1)) < 32) {
+        for (int i=lb; i<=ub; i++) {
+          _block_scan(dx?ax: i, dx?i: ax, dx, dy);
+        }
+      }
+      else
+        _pushIntervalF(intervals, c.r, nullptr, lb, ub, dx, dy);
+    }
   }
 }

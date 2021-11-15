@@ -68,6 +68,32 @@ compute_direction_4c(int32_t px, int32_t py, int32_t x, int32_t y)
     return d; 
 }
 
+inline direction v2d(const int& dx, const int& dy) {
+  switch (dx) {
+    case 1:
+      switch (dy) {
+        case 1: return SOUTHEAST;
+        case -1: return NORTHEAST;
+        case 0: return EAST;
+        default: return NONE;
+      }
+    case -1:
+      switch (dy) {
+        case 1: return SOUTHWEST;
+        case -1: return NORTHWEST;
+        case 0: return WEST;
+        default: return NONE;
+      }
+    case 0:
+      switch (dy) {
+        case 1: return SOUTH;
+        case -1: return NORTH;
+        default: return NONE;
+      }
+    default: return NONE;
+  };
+}
+
 inline warthog::jps::direction
 compute_direction_4c(uint32_t n1_xy_id, uint32_t n2_xy_id, uint32_t mapwidth)
 {

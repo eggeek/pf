@@ -31,6 +31,7 @@ TEST_CASE("gen") {
     {"../maps/dao/arena.map", "./test/rects/arena.rect"},
     {"../maps/rooms/64room_000.map", "./test/rects/64room.rect"},
     {"../maps/bgmaps/AR0042SR.map", "./test/rects/AR0042SR.rect"},
+    {"../maps/starcraft/CatwalkAlley.map", "../scenarios/movingai/starcraft/CatwalkAlley.map.scen"}
   };
   RectMap rectmap;
   for (auto& each: cases) {
