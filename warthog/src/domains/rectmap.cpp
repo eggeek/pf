@@ -4,16 +4,45 @@
 
 typedef warthog::rectscan::RectMap rmap;
 
-rmap::RectMap(const char* mapfile, bool make): gmap(mapfile) {
-    _filename = string(mapfile);
-    init(mapfile, make);
+void rmap::create_gmap_from_rects() {
+  if (gmap != nullptr)
+    delete gmap;
+  gmap = new gridmap((uint32_t)maph, (uint32_t)mapw);
+  uint32_t cnt = 0;
+  gmap->set_num_traversable_tiles(cnt);
+  for (int y=0; y<maph; y++)
+  for (int x=0; x<mapw; x++) {
+    uint32_t id = y*mapw + x;
+    if (idmap[id] != -1) {
+      cnt++;
+      gmap->set_num_traversable_tiles(cnt);
+      gmap->set_label(gmap->to_padded_id(id), 1);
+    }
+    else {
+      gmap->set_label(gmap->to_padded_id(id), 0);
+    }
+  }
 }
 
-void rmap::init(const char* mapfile, bool make, bool quadtree) {
+rmap::RectMap(const char* mapfile, bool quadtree) {
+  _filename = string(mapfile);
+  init(mapfile);
+  create_gmap_from_rects();
+  assert(mapw == (int)gmap->header_width());
+  assert(maph == (int)gmap->header_height());
+}
+
+void rmap::init(const string& mapfile, bool quadtree) {
   // generate rectangle from original map
-  if (make) {
+  // if mapfile is: 
+  // 1. "*.map", compute rectangles
+  // 2. "*.rect", load from rect file (make_rectangles_from_file)
+  // 3. "*.rectid", load from idmap file (make_rectangles_from_idmap)
+
+  if (mapfile.back() == 'p') {
+    // *.map
     ifstream fin;
-    fin.open(mapfile);
+    fin.open(mapfile.c_str());
     rectgen::read_map(fin);
     if (quadtree)
       rectgen::make_rectangles_from_quadtree();
@@ -22,11 +51,16 @@ void rmap::init(const char* mapfile, bool make, bool quadtree) {
     maph = rectgen::map_height;
     mapw = rectgen::map_width;
   }
-  else {
-  // or load rectangles from a user specified rectangles
-  // each rectangle is labelled by 0~9 a~z A~Z
-  // only work if #rect is not large than 10+26*2 
-    make_rectangles_from_file(mapfile);
+  else if (mapfile.back() == 't') {
+    // *.rect
+    // or load rectangles from a user specified rectangles
+    // each rectangle is labelled by 0~9 a~z A~Z
+    // only work if #rect is not large than 10+26*2 
+    make_rectangles_from_file(mapfile.c_str());
+  }
+  else if (mapfile.back() == 'd') {
+    // *.rectid
+    make_rectangles_from_idmap(mapfile.c_str());
   }
   init_rects();
   // init isjptr
@@ -37,6 +71,49 @@ void rmap::init(const char* mapfile, bool make, bool quadtree) {
        ) isjptr[pre][cur] = true;
     else isjptr[pre][cur] = false;
   }
+}
+
+void rmap::init(int maph_, int mapw_, const vector<int>& rectids) {
+  this->maph = maph_;
+  this->mapw = mapw_;
+  this->idmap = vector<int>(rectids.begin(), rectids.end());
+
+  map<int, rectgen::FinalRect> rs;
+  for (int y=0; y<maph; y++) {
+    for (int x=0; x<mapw; x++) {
+      int id = idmap[y*mapw + x];
+      if (id != -1) {
+        if (rs.find(id) == rs.end()) {
+          rs[id].x = x;
+          rs[id].y = y;
+          rs[id].height = y;
+          rs[id].width = x;
+        }
+        else {
+          rs[id].x = min(rs[id].x , x);
+          rs[id].y = min(rs[id].y , y);
+          rs[id].height = max(rs[id].height, y);
+          rs[id].width = max(rs[id].width, x);
+        }
+      }
+    }
+  }
+  rectgen::final_rectangles.clear();
+  for (auto& it: rs) {
+    it.second.height -= it.second.y - 1;
+    it.second.width -= it.second.x - 1;
+    rectgen::final_rectangles.push_back(it.second);
+  }
+
+  init_rects();
+  for (int pre=0; pre<4; pre++)
+  for (int cur=0; cur<4; cur++) {
+    if (((pre & 2) && (cur & 2) == 0) ||
+        ((pre & 1) && (cur & 1) == 0)
+       ) isjptr[pre][cur] = true;
+    else isjptr[pre][cur] = false;
+  }
+  create_gmap_from_rects();
 }
 
 void rmap::make_rectangles_from_file(const char* rectfile) {
@@ -76,6 +153,39 @@ void rmap::make_rectangles_from_file(const char* rectfile) {
       rectgen::final_rectangles.push_back(it.second);
     }
   }
+
+void rmap::make_rectangles_from_idmap(const char* ridfile) {
+  ifstream fin(ridfile);
+  int id;
+  fin >> this->maph >> this->mapw;
+  map<int, rectgen::FinalRect> rs;
+  for (int y=0; y<maph; y++) {
+    for (int x=0; x<mapw; x++) {
+      fin >> id;
+      if (id != -1) {
+        if (rs.find(id) == rs.end()) {
+          rs[id].x = x;
+          rs[id].y = y;
+          rs[id].height = y;
+          rs[id].width = x;
+        }
+        else {
+          rs[id].x = min(rs[id].x , x);
+          rs[id].y = min(rs[id].y , y);
+          rs[id].height = max(rs[id].height, y);
+          rs[id].width = max(rs[id].width, x);
+        }
+      }
+    }
+  }
+  rectgen::final_rectangles.clear();
+  for (auto& it: rs) {
+    it.second.height -= it.second.y - 1;
+    it.second.width -= it.second.x - 1;
+    rectgen::final_rectangles.push_back(it.second);
+  }
+}
+
   
 void rmap::init_rects() {
 

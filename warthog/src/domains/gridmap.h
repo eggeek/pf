@@ -24,6 +24,7 @@
 #include "helpers.h"
 
 #include <climits>
+#include <cstdint>
 #include <immintrin.h>
 #include <tmmintrin.h>
 #include "stdint.h"
@@ -334,21 +335,26 @@ class gridmap
 			return this->filename_;
 		}
 
-        inline uint32_t
-        get_num_traversable_tiles()
-        {
-            return num_traversable_;
-        }
+    inline uint32_t
+    get_num_traversable_tiles()
+    {
+        return num_traversable_;
+    }
 
-        // invert map (traversable tiles become obstacles and vice versa) 
-        inline void
-        invert()
+    inline void 
+    set_num_traversable_tiles(uint32_t newnum) {
+      num_traversable_ = newnum;
+    }
+
+    // invert map (traversable tiles become obstacles and vice versa) 
+    inline void
+    invert()
+    {
+        for(unsigned int i=0; i < db_size_; i++)
         {
-            for(unsigned int i=0; i < db_size_; i++)
-            {
-                db_[i] = (warthog::dbword)~db_[i];
-            }
+            db_[i] = (warthog::dbword)~db_[i];
         }
+    }
 
 
 		void 
@@ -380,7 +386,7 @@ class gridmap
 		uint32_t padded_rows_before_first_row_;
 		uint32_t padded_rows_after_last_row_;
 		uint32_t max_id_;
-        uint32_t num_traversable_;
+    uint32_t num_traversable_;
 
 		gridmap(const warthog::gridmap& other) {}
 		gridmap& operator=(const warthog::gridmap& other) { return *this; }

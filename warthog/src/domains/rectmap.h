@@ -264,25 +264,57 @@ class RectMap {
   public:
   vector<Rect> rects;
   int maph, mapw;
-  gridmap gmap;
+  gridmap* gmap = nullptr;
   // isjptr[pre_mask][cur_mask]
   bool isjptr[4][4];
   vector<int> idmap;
 
-  RectMap(): gmap(0, 0) { };
-  RectMap(const char* mapfile, bool make=true);
+  RectMap() {
+    gmap = nullptr;
+  };
+  RectMap(const char* mapfile, bool quadtree=false);
   ~RectMap() {
     rects.clear();
     rects.shrink_to_fit();
+    if (gmap != nullptr)
+      delete gmap;
   }
 
-  void init(const char* mapfile, bool make=true, bool quadtree=false);
+  inline bool operator==(const RectMap& rhs) const {
+    if (rhs.mapw != this->mapw) return false;
+    if (rhs.maph != this->maph) return false;
+    for (int y=0; y<maph; y++)
+    for (int x=0; x<mapw; x++) {
+      if (this->idmap[y * mapw + x] != rhs.idmap[y * mapw + x])
+        return false;
+    }
+    return true;
+  }
+
+  inline bool equal(gridmap& rhs) const {
+    if ((int)rhs.header_height() != maph) return false;
+    if ((int)rhs.header_width() != mapw) return false;
+    for (int y=0; y<maph; y++)
+    for (int x=0; x<mapw; x++) {
+      uint32_t padded_id = rhs.to_padded_id(y*mapw + x);
+      if (rhs.get_label(padded_id)==0 && idmap[y*mapw+x]!=-1)
+        return false;
+      if (rhs.get_label(padded_id) && idmap[y*mapw+x]==-1)
+        return false;
+    }
+    return true;
+  }
+
+  void create_gmap_from_rects();
+  void init(const string& mapfile, bool quadtree=false);
+  void init(int mapw_, int maph_, const vector<int>& rectids);
   void make_rectangles_from_file(const char* mapfile);
+  void make_rectangles_from_idmap(const char* mapfile);
 
   inline const char* filename() { return this->_filename.c_str();}
 
   inline void get_neighbours(uint32_t id, uint8_t tiles[3]) {
-    gmap.get_neighbours(gmap.to_padded_id(id), tiles);
+    gmap->get_neighbours(gmap->to_padded_id(id), tiles);
   }
 
   inline int get_adj_rect(const Rect* r, const int& eid, const int& pos) const {
@@ -297,30 +329,30 @@ class RectMap {
 
   // return the mask horizontal, i.e. left,right
   inline int get_maskh(const int& x, const int& y) {
-    int padid = gmap.to_padded_id(x, y);
+    int padid = gmap->to_padded_id(x, y);
     uint32_t px, py;
-    gmap.to_padded_xy(padid, px, py);
+    gmap->to_padded_xy(padid, px, py);
     int res = 3;
-    if (gmap.get_label(px-1, py)) res ^= 2;
-    if (gmap.get_label(px+1, py)) res ^= 1;
+    if (gmap->get_label(px-1, py)) res ^= 2;
+    if (gmap->get_label(px+1, py)) res ^= 1;
     return res;
   }
 
   inline int get_label(const int id) {
     int x, y;
     this->to_xy(id, x, y);
-    int padid = gmap.to_padded_id(x, y);
-    return gmap.get_label(padid);
+    int padid = gmap->to_padded_id(x, y);
+    return gmap->get_label(padid);
   }
 
   // return the mask vertical, i.e. up,down
   inline int get_maskw(const int& x, const int& y) {
-    int padid = gmap.to_padded_id(x, y);
+    int padid = gmap->to_padded_id(x, y);
     uint32_t px, py;
-    gmap.to_padded_xy(padid, px, py);
+    gmap->to_padded_xy(padid, px, py);
     int res = 3;
-    if (gmap.get_label(px, py-1)) res ^= 2;
-    if (gmap.get_label(px, py+1)) res ^= 1;
+    if (gmap->get_label(px, py-1)) res ^= 2;
+    if (gmap->get_label(px, py+1)) res ^= 1;
     return res;
   }
 
@@ -350,6 +382,15 @@ class RectMap {
         out << c;
       }
       out << endl;
+    }
+  }
+
+  void print_idmap(ostream& out) {
+    out << maph << " " << mapw << endl;
+    for (int y=0; y<maph; y++) {
+      for (int x=0; x<mapw; x++) {
+        out << idmap[y*mapw + x] << ((x+1<mapw)?" ": "\n");
+      }
     }
   }
 

@@ -93,10 +93,10 @@ inline bool rectlocator::_scanLR(Rect* r, int curx, int cury, int dx, int dy) {
       // }
       // else {
         int sidx = jpts_.size();
-        jpl->jump(jps::v2d(dx, dy), map_->gmap.to_padded_id(curx, cury), padded_goal_id,
+        jpl->jump(jps::v2d(dx, dy), map_->gmap->to_padded_id(curx, cury), padded_goal_id,
           jpts_, costs_);
         for (int i=sidx; i<(int)jpts_.size(); i++) {
-          jpts_[i] = map_->gmap.to_unpadded_id(jpts_[i]);
+          jpts_[i] = map_->gmap->to_unpadded_id(jpts_[i]);
         }
         return true;
       // }
@@ -241,12 +241,12 @@ void rectlocator::_pushInterval(queue<Interval>& intervals, int dx, int dy) {
     if (lb <= ub) {
       // cure^1 is the position of orthogonal edge
       // if it is short, we will use normal block based scanning
-      if (c.r->len(eposition(cure^1)) < 32) {
-        for (int i=lb; i<=ub; i++) {
-          _block_scan(dx?ax: i, dx?i: ax, dx, dy);
-        }
-      }
-      else
+      // if (c.r->len(eposition(cure^1)) < 32) {
+      //   for (int i=lb; i<=ub; i++) {
+      //     _block_scan(dx?ax: i, dx?i: ax, dx, dy);
+      //   }
+      // }
+      // else
         _pushIntervalF(intervals, c.r, nullptr, lb, ub, dx, dy);
     }
   }

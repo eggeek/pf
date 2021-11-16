@@ -38,7 +38,7 @@ class rect_jump_point_locator
       _curx = _cury = _goal_rid = INF;
       jpts_.reserve(1<<7);
       costs_.reserve(1<<7);
-      jpl = new jps::online_jump_point_locator2(&map_->gmap);
+      jpl = new jps::online_jump_point_locator2(map_->gmap);
     };
     ~rect_jump_point_locator() {
       delete jpl;
@@ -56,17 +56,17 @@ class rect_jump_point_locator
         cur_goal_id_ = goal_id;
         map_->to_xy(cur_goal_id_, _goalx, _goaly);
         _goal_rid = map_->get_rid(_goalx, _goaly);
-        padded_goal_id = map_->gmap.to_padded_id(_goalx, _goaly);
+        padded_goal_id = map_->gmap->to_padded_id(_goalx, _goaly);
       }
-      if (rect->h * rect->w <= minstep) {
-        int sidx = jpts_.size();
-        jpl->jump(d, map_->gmap.to_padded_id(_curx, _cury), padded_goal_id, 
-            jpts_, costs_);
-        for (int i=sidx; i<(int)jpts_.size(); i++) {
-          jpts_[i] = map_->gmap.to_unpadded_id(jpts_[i]);
-        }
-        return;
-      }
+      // if (rect->h * rect->w <= minstep) {
+      //   int sidx = jpts_.size();
+      //   jpl->jump(d, map_->gmap.to_padded_id(_curx, _cury), padded_goal_id,
+      //       jpts_, costs_);
+      //   for (int i=sidx; i<(int)jpts_.size(); i++) {
+      //     jpts_[i] = map_->gmap.to_unpadded_id(jpts_[i]);
+      //   }
+      //   return;
+      // }
       if (rect->rid == _goal_rid) {
         jpts_.push_back(cur_goal_id_);
       }
@@ -133,7 +133,7 @@ class rect_jump_point_locator
     }
 
 	private:
-    const int minstep=1<<9;
+    // const int minstep=0;
 		int cur_goal_id_;
     uint32_t padded_goal_id;
 		int cur_node_id_;
@@ -360,10 +360,10 @@ class rect_jump_point_locator
     inline void _block_scan(int curx, int cury, int dx, int dy) {
       jps::direction d = jps::v2d(dx, dy);
       int sidx = jpts_.size();
-      jpl->jump(d, map_->gmap.to_padded_id(curx, cury), padded_goal_id,
+      jpl->jump(d, map_->gmap->to_padded_id(curx, cury), padded_goal_id,
           jpts_, costs_);
       for (int i=sidx; i<(int)jpts_.size(); i++)
-        jpts_[i] = map_->gmap.to_unpadded_id(jpts_[i]);
+        jpts_[i] = map_->gmap->to_unpadded_id(jpts_[i]);
     }
 };
 
