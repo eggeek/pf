@@ -26,12 +26,12 @@ const vector<string> desc = {
   "NORTHEAST", "NORTHWEST", "SOUTHEAST", "SOUTHWEST"
 };
 
-TEST_CASE("gen") {
+TEST_CASE("gen-rect") {
   vector<pair<string, string>> cases = {
     {"../maps/dao/arena.map", "./test/rects/arena.rect"},
     {"../maps/rooms/64room_000.map", "./test/rects/64room.rect"},
     {"../maps/bgmaps/AR0042SR.map", "./test/rects/AR0042SR.rect"},
-    {"../maps/starcraft/CatwalkAlley.map", "../scenarios/movingai/starcraft/CatwalkAlley.map.scen"}
+    {"../maps/starcraft/CatwalkAlley.map", "../test/rects/CatwalkAlley.rect"}
   };
   RectMap rectmap;
   for (auto& each: cases) {
@@ -46,6 +46,114 @@ TEST_CASE("gen") {
   }
 }
 
+TEST_CASE("gen-rectid") {
+  vector<pair<string, string>> cases = {
+    {"../maps/dao/arena.map", "./test/rectid/arena.rectid"},
+    {"../maps/rooms/64room_000.map", "./test/rectid/64room.rectid"},
+    {"../maps/bgmaps/AR0042SR.map", "./test/rectid/AR0042SR.rectid"},
+    {"./data/arena_1.map", "./test/rectid/arena_1.rectid"},
+    {"./data/arena_2.map", "./test/rectid/arena_2.rectid"},
+    {"./data/arena_3.map", "./test/rectid/arena_3.rectid"},
+    {"./data/arena_4.map", "./test/rectid/arena_4.rectid"},
+    {"./data/arena_5.map", "./test/rectid/arena_5.rectid"},
+    {"./data/arena_6.map", "./test/rectid/arena_6.rectid"},
+    {"./data/arena_7.map", "./test/rectid/arena_7.rectid"},
+    {"./data/arena_8.map", "./test/rectid/arena_8.rectid"},
+    {"./data/64room_000_1.map", "./test/rectid/64room_000_1.rectid"},
+    {"./data/64room_000_2.map", "./test/rectid/64room_000_2.rectid"},
+    {"./data/64room_000_3.map", "./test/rectid/64room_000_3.rectid"},
+    {"./data/64room_000_4.map", "./test/rectid/64room_000_4.rectid"},
+    {"./data/64room_000_5.map", "./test/rectid/64room_000_5.rectid"},
+    {"./data/64room_000_6.map", "./test/rectid/64room_000_6.rectid"},
+    {"./data/64room_000_7.map", "./test/rectid/64room_000_7.rectid"},
+    {"./data/64room_000_8.map", "./test/rectid/64room_000_8.rectid"},
+    {"./data/GreenerPastures_1.map", "./test/rectid/GreenerPastures_1.rectid"},
+    {"./data/GreenerPastures_2.map", "./test/rectid/GreenerPastures_2.rectid"},
+    {"./data/GreenerPastures_3.map", "./test/rectid/GreenerPastures_3.rectid"},
+    {"./data/GreenerPastures_4.map", "./test/rectid/GreenerPastures_4.rectid"},
+    {"./data/GreenerPastures_5.map", "./test/rectid/GreenerPastures_5.rectid"},
+    {"./data/GreenerPastures_6.map", "./test/rectid/GreenerPastures_6.rectid"},
+    {"./data/GreenerPastures_7.map", "./test/rectid/GreenerPastures_7.rectid"},
+    {"./data/GreenerPastures_8.map", "./test/rectid/GreenerPastures_8.rectid"},
+    {"./data/CatwalkAlley_1.map", "./test/rectid/CatwalkAlley_1.rectid"},
+    {"./data/CatwalkAlley_2.map", "./test/rectid/CatwalkAlley_2.rectid"},
+    {"./data/CatwalkAlley_3.map", "./test/rectid/CatwalkAlley_3.rectid"},
+    {"./data/CatwalkAlley_4.map", "./test/rectid/CatwalkAlley_4.rectid"},
+    {"./data/CatwalkAlley_5.map", "./test/rectid/CatwalkAlley_5.rectid"},
+    {"./data/CatwalkAlley_6.map", "./test/rectid/CatwalkAlley_6.rectid"},
+    {"./data/CatwalkAlley_7.map", "./test/rectid/CatwalkAlley_7.rectid"},
+    {"./data/CatwalkAlley_8.map", "./test/rectid/CatwalkAlley_8.rectid"},
+  };
+  RectMap rectmap;
+  for (auto& each: cases) {
+    string mapfile = each.first;
+    string writeto = each.second;
+    rectmap.init(mapfile.c_str()); 
+    ofstream out;
+    out.open(writeto.c_str());
+    rectmap.print_idmap(out);
+    out.close();
+    cout << "#rects: " << rectmap.rects.size() << endl;
+    RectMap newmap(writeto.c_str());
+    // newmap.init(writeto.c_str());
+    REQUIRE(newmap == rectmap);
+    REQUIRE(newmap.equal(*(newmap.gmap)));
+  }
+}
+
+TEST_CASE("gen-distr") {
+  // generate statistic data of rectangles
+  vector<string> maps = {
+     "./test/rectid/arena_1.rectid",
+     "./test/rectid/arena_2.rectid",
+     "./test/rectid/arena_3.rectid",
+     "./test/rectid/arena_4.rectid",
+     "./test/rectid/arena_5.rectid",
+     "./test/rectid/arena_6.rectid",
+     "./test/rectid/arena_7.rectid",
+     "./test/rectid/arena_8.rectid",
+     "./test/rectid/64room_000_1.rectid",
+     "./test/rectid/64room_000_2.rectid",
+     "./test/rectid/64room_000_3.rectid",
+     "./test/rectid/64room_000_4.rectid",
+     "./test/rectid/64room_000_5.rectid",
+     "./test/rectid/64room_000_6.rectid",
+     "./test/rectid/64room_000_7.rectid",
+     "./test/rectid/64room_000_8.rectid",
+     "./test/rectid/GreenerPastures_1.rectid",
+     "./test/rectid/GreenerPastures_2.rectid",
+     "./test/rectid/GreenerPastures_3.rectid",
+     "./test/rectid/GreenerPastures_4.rectid",
+     "./test/rectid/GreenerPastures_5.rectid",
+     "./test/rectid/GreenerPastures_6.rectid",
+     "./test/rectid/GreenerPastures_7.rectid",
+     "./test/rectid/GreenerPastures_8.rectid",
+     "./test/rectid/CatwalkAlley_1.rectid",
+     "./test/rectid/CatwalkAlley_2.rectid",
+     "./test/rectid/CatwalkAlley_3.rectid",
+     "./test/rectid/CatwalkAlley_4.rectid",
+     "./test/rectid/CatwalkAlley_5.rectid",
+     "./test/rectid/CatwalkAlley_6.rectid",
+     "./test/rectid/CatwalkAlley_7.rectid",
+     "./test/rectid/CatwalkAlley_8.rectid",
+  };
+  RectMap rmap;
+  string headers = "map,mapw,maph,rnum,rid,rw,rh";
+  cout << headers << endl;
+  for (auto& m: maps) {
+    rmap.init(m.c_str());
+    for (auto& r: rmap.rects) {
+      cout << m << ","
+           << rmap.mapw << ","
+           << rmap.maph << ","
+           << rmap.rects.size() << ","
+           << r.rid << ","
+           << r.w << ","
+           << r.h << endl;
+    }
+  }
+}
+
 TEST_CASE("adj") {
   vector<pair<string, string>> cases = {
     {"./test/rects/simple0.rect", "./test/rects/simple0.adj"},
@@ -55,7 +163,7 @@ TEST_CASE("adj") {
   for (auto &each: cases) {
     string rectfile = each.first;
     string adjfile = each.second;
-    rectmap.init(rectfile.c_str(), false);
+    rectmap.init(rectfile.c_str());
     ifstream in;
     in.open(adjfile.c_str());
     vector<Rect> rects;
@@ -105,8 +213,8 @@ TEST_CASE("jump") {
   for (auto &each: cases) {
     string rectfile = each;
     cout << "map: " << rectfile << endl;
-    bool flag = rectfile.back() == 'p';
-    RectMap rectmap(rectfile.c_str(), flag);
+    // check if it is end with .map
+    RectMap rectmap(rectfile.c_str());
     warthog::gridmap* gmap = new warthog::gridmap(rectfile.c_str());
     warthog::jps::online_jump_point_locator2* jpl2 = 
       new warthog::jps::online_jump_point_locator2(gmap);
@@ -141,6 +249,73 @@ TEST_CASE("jump") {
   }
 }
 
+TEST_CASE("speed-empty") {
+  vector<int> idmaps;
+
+  vector<vector<int>> cases = {
+    // h,  w,  side
+    {256, 256, 1},
+    {256, 256, 16},
+    {256, 256, 32},
+    {256, 256, 64},
+    {512, 512, 2},
+    {512, 512, 16},
+    {512, 512, 32},
+    {512, 512, 64},
+    {1024, 1024, 4},
+    {1024, 1024, 8},
+    {1024, 1024, 16},
+    {1024, 1024, 32},
+    {1024, 1024, 64},
+    {2048, 2048, 8},
+    {4096, 4096, 16},
+    {4096, 4096, 32},
+    {4096, 4096, 64},
+    {4096, 4096, 128},
+    {4096, 4096, 256},
+  };
+  RectMap rmap;
+  for (auto& c: cases) {
+    int maph = c[0], mapw = c[1], s = c[2];
+    idmaps.resize(maph * mapw);
+    for (int y=0; y<maph; y++)
+    for (int x=0; x<mapw; x++) {
+      int block_id = (y / s) * (mapw / s) + (x / s);
+      idmaps[y * mapw + x] = block_id;
+    }
+    rmap.init(maph, mapw, idmaps);
+    REQUIRE((int)rmap.rects.size() == (maph*mapw) / (s*s));
+    rect_jump_point_locator jpl = rect_jump_point_locator(&rmap); 
+
+    warthog::gridmap* gmap = rmap.gmap;
+    warthog::jps::online_jump_point_locator2* jpl2 = 
+      new warthog::jps::online_jump_point_locator2(gmap);
+
+    REQUIRE(rmap.equal(*gmap));
+    warthog::timer t;
+    long long cost_rect, cost_jp2;
+    int sx = 0, sy = 0, tx = mapw-1, ty = maph-1;
+    uint32_t unpad_sid = rmap.to_id(sx, sy), unpad_tid = rmap.to_id(tx, ty);
+    uint32_t pad_sid = gmap->to_padded_id(unpad_sid), pad_tid = gmap->to_padded_id(unpad_tid);
+    vector<uint32_t> jpts; 
+    vector<warthog::cost_t> cost;
+
+    t.start();
+    jpl2->jump(warthog::jps::direction::SOUTHEAST, pad_sid, pad_tid, jpts, cost);
+    t.stop();
+    cost_jp2 = t.elapsed_time_nano();
+
+    t.start();
+    jpl.jump(warthog::jps::direction::SOUTHEAST, unpad_sid, unpad_tid, rmap.get_rect(rmap.idmap[sy*rmap.mapw+sx]));
+    t.stop();
+    cost_rect = t.elapsed_time_nano();
+
+    cout << "h,w: " << maph << ", side: " << s 
+         << ", cost rect: " << cost_rect << ", cost jp2: " << cost_jp2 << ", speed: " << (double)cost_jp2 / (double)cost_rect << endl;
+    delete jpl2;
+  }
+}
+
 TEST_CASE("intervalScan") {
   vector<string> cases = {
     "./test/rects/simple0.rect",
@@ -151,8 +326,7 @@ TEST_CASE("intervalScan") {
   for (auto &each: cases) {
     string rectfile = each;
     cout << "map:" << rectfile << endl; 
-    bool flag = rectfile.back() == 'p';
-    RectMap rectmap(rectfile.c_str(), flag);
+    RectMap rectmap(rectfile.c_str());
     warthog::gridmap* gmap = new warthog::gridmap(rectfile.c_str());
     warthog::jps::online_jump_point_locator2* jpl2 = 
       new warthog::jps::online_jump_point_locator2(gmap);
@@ -200,8 +374,7 @@ void run_scen(warthog::scenario_manager& scenmgr, string mapfile, bool verbose=f
     warthog::jps2_expansion_policy,
     warthog::pqueue_min> jps2(&heuristic, &expander, &open);
 
-  bool flag = mapfile.back() == 'p';
-  RectMap rmap(mapfile.c_str(), flag);
+  RectMap rmap(mapfile.c_str());
   rect_expansion_policy rexpan(&rmap);
   warthog::octile_heuristic rheur(rmap.mapw, rmap.maph);
   warthog::pqueue_min open2;
@@ -251,6 +424,6 @@ int main(int argv, char* args[]) {
   if (resCode != 0)
     return resCode;
 
-	cout << "Running test cases..." << endl;
+	cerr << "Running test cases..." << endl;
 	return session.run(argv, args);
 }
