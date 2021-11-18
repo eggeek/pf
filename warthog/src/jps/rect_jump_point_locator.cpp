@@ -84,22 +84,26 @@ inline bool rectlocator::_scanLR(Rect* r, int curx, int cury, int dx, int dy) {
     bool onL = r->onLR(rdirect::L, dx, dy, curx, cury);
     bool onR = r->onLR(rdirect::R, dx, dy, curx, cury);
     if ( onL || onR) {
-      // if (r->w * r->h > minstep) {
-      //   if (_find_jpt(r, r2e.at({dx, dy, onL?rdirect::L: rdirect::R}), curx, cury, dx, dy, node_id)) {
-      //     jpts_.push_back((uint32_t)node_id);
-      //     return true;
-      //   }
-      //   else return false;
-      // }
-      // else {
-        int sidx = jpts_.size();
+      if (r->disF(dx, dy, curx, cury) > minstep) {
+        int node_id;
+        if (_find_jpt(r, R2E(dx, dy, onL?rdirect::L: rdirect::R), curx, cury, dx, dy, node_id)) {
+          jpts_.push_back((uint32_t)node_id);
+          return true;
+        }
+        else return false;
+      }
+      else {
+        size_t sidx = jpts_.size();
         jpl->jump(jps::v2d(dx, dy), map_->gmap->to_padded_id(curx, cury), padded_goal_id,
           jpts_, costs_);
-        for (int i=sidx; i<(int)jpts_.size(); i++) {
+        for (size_t i=sidx; i<jpts_.size(); i++) {
           jpts_[i] = map_->gmap->to_unpadded_id(jpts_[i]);
+          int tx, ty;
+          map_->to_xy(jpts_[i], tx, ty);
+          //      << "at (" << tx << ", " << ty << ") " << jpts_[i] << endl;
         }
         return true;
-      // }
+      }
     }
     return false;
   }
@@ -117,17 +121,16 @@ inline bool rectlocator::_scanLR(Rect* r, int curx, int cury, int dx, int dy) {
 // Postcondition: [lb, ub] is in the nxtr if exist, 
 // otherwise set to INF.
 //
-// Optimisation: keep pushing if there is only one interval, 
-// such behavior is controled by `found`
 inline void rectlocator::_pushIntervalF(
     queue<Interval>& intervals, Rect* curr, Rect* nxtr, 
     int &lb, int &ub, int dx, int dy) {
 
+  // cerr << "push interval forward, dx: " << dx << ", dy: " << dy
+  //      << "[" << lb << ", " << ub << "]" << endl;
   // interval is on F border now
-  eposition cure = r2e.at({dx, dy, rdirect::F});
-  eposition nxte = r2e.at({dx, dy, rdirect::B});
+  eposition cure = R2E(dx, dy, rdirect::F);
+  eposition nxte = R2E(dx, dy, rdirect::B);
   int newLb=INF, newUb=INF, nxtL=INF, nxtU=INF;
-  bool flag = true, found = false;
   Rect* nxtRect = nullptr;
 
   auto bs = [&]() {
@@ -145,78 +148,64 @@ inline void rectlocator::_pushIntervalF(
     }
     return best;
   };
-  while (flag) {
-    if (found) {
-      lb = nxtL, ub = nxtU, curr = nxtRect;
-      found = false;
-      jps::scan_cnt++;
-    }
-    int sidx = bs();
-    for (int i=sidx; i<(int)curr->adj[cure].size(); i++) {
-      int rid = curr->adj[cure][i];
-      // the adjacent rect contains the goal
-      Rect* r = &(map_->rects[rid]);
 
-      int rL=0, rR=0, hori, vertL, vertR;
-      r->get_range(cure, rL, rR);
-      if (rL > ub) break;
-      rL = max(rL, lb); 
+  int sidx = bs();
+  for (int i=sidx; i<(int)curr->adj[cure].size(); i++) {
+    int rid = curr->adj[cure][i];
+    // the adjacent rect contains the goal
+    Rect* r = &(map_->rects[rid]);
+
+    int rL=0, rR=0, hori, vertL, vertR;
+    r->get_range(cure, rL, rR);
+    if (rL > ub) break;
+    rL = max(rL, lb); 
+    rR = min(rR, ub);
+
+    if (rid == _goal_rid) {
+      rL = max(rL, lb);
       rR = min(rR, ub);
+      int ax = r->axis(nxte);
+      int x, y;
+      if (dx == 0) {
+        y = ax;
+        if (rL <= _goalx && _goalx <= rR) x=_goalx;
+        else if (rL > _goalx) x=rL;
+        else x=rR;
+      }
+      else {
+        x = ax;
+        if (rL <= _goaly && _goaly <= rR) y=_goaly;
+        else if (rL > _goaly) y=rL;
+        else y=rR;
+      }
+      jpts_.push_back(map_->to_id(x, y));
+      // a shorter path may pass another interval,
+      // so we should continue instead of break
+      continue;
+    }
 
-      if (rid == _goal_rid) {
-        rL = max(rL, lb);
-        rR = min(rR, ub);
-        int ax = r->axis(nxte);
-        int x, y;
-        if (dx == 0) {
-          y = ax;
-          if (rL <= _goalx && _goalx <= rR) x=_goalx;
-          else if (rL > _goalx) x=rL;
-          else x=rR;
-        }
-        else {
-          x = ax;
-          if (rL <= _goaly && _goaly <= rR) y=_goaly;
-          else if (rL > _goaly) y=rL;
-          else y=rR;
-        }
-        jpts_.push_back(map_->to_id(x, y));
-        continue;
+    hori = r->axis(nxte);
+    vertL = r->axis(dx?eposition::N: eposition::W);
+    if (lb <= vertL && vertL <= ub) {
+      if (_scanLR(r, dx?hori: vertL, dx?vertL: hori, dx, dy))
+        rL++;
+    }
+    vertR = r->axis(dx?eposition::S: eposition::E);
+    if (vertL != vertR && lb <= vertR && vertR <= ub) {
+      if (_scanLR(r, dx?hori:vertR, dx?vertR:hori, dx, dy))
+        rR--;
+    }
+    if (rL <= rR) {
+      if (nxtr != nullptr && r == nxtr) {
+        assert(newLb == INF);
+        assert(newUb == INF);
+        newLb = rL;
+        newUb = rR;
       }
-
-      hori = r->axis(nxte);
-      vertL = r->axis(dx?eposition::N: eposition::W);
-      if (lb <= vertL && vertL <= ub) {
-        if (_scanLR(r, dx?hori: vertL, dx?vertL: hori, dx, dy))
-          rL++;
-      }
-      vertR = r->axis(dx?eposition::S: eposition::E);
-      if (vertL != vertR && lb <= vertR && vertR <= ub) {
-        if (_scanLR(r, dx?hori:vertR, dx?vertR:hori, dx, dy))
-          rR--;
-      }
-      if (rL <= rR) {
-        if (nxtr != nullptr && r == nxtr) {
-          assert(newLb == INF);
-          assert(newUb == INF);
-          newLb = rL;
-          newUb = rR;
-        }
-        else {
-          if (!found) {
-            nxtL = rL, nxtU = rR, nxtRect = r;
-            found = true;
-          }
-          else {
-            intervals.push({rL, rR, r});
-            flag = false;
-          }
-        }
+      else {
+        intervals.push({rL, rR, r});
       }
     }
-    if (!flag && found)
-      intervals.push({nxtL, nxtU, nxtRect});
-    if (!found) break;
   }
   lb = newLb, ub = newUb;
 }
@@ -224,30 +213,30 @@ inline void rectlocator::_pushIntervalF(
 // interval [lb, ub] in rectangle at B border
 void rectlocator::_pushInterval(queue<Interval>& intervals, int dx, int dy) {
   int ax, lb, ub;
-  eposition cure = r2e.at({dx, dy, rdirect::B});
+  eposition cure = R2E(dx, dy, rdirect::B);
 
   while (!intervals.empty()) {
     Interval c = intervals.front(); intervals.pop();
+    ax = c.r->axis(cure);
     lb = c.lb, ub = c.ub;
     jps::scan_cnt++;
+    // if it is short, we will use normal block based scanning
+    int d2F = c.r->disF(dx, dy, dx?ax: lb, dx?lb: ax);
+    if (d2F*(ub-lb+1) <= minarea) {
+      for (int i=lb; i<=ub; i++) {
+        _block_scan(dx?ax: i, dx?i: ax, dx, dy);
+      }
+      continue;
+    }
     // the coordinate of interval [lb, ub]
     // dy=0 then ax is y-axis otherwise it is x-axis
-    ax = c.r->axis(cure);
     // is lb on L/R border
     if (_scanLR(c.r, dx?ax: lb, dx?lb: ax, dx, dy)) 
       lb++;
     if (c.lb != c.ub && _scanLR(c.r, dx?ax: ub, dx?ub: ax, dx, dy))
       ub--;
     if (lb <= ub) {
-      // cure^1 is the position of orthogonal edge
-      // if it is short, we will use normal block based scanning
-      // if (c.r->len(eposition(cure^1)) < 32) {
-      //   for (int i=lb; i<=ub; i++) {
-      //     _block_scan(dx?ax: i, dx?i: ax, dx, dy);
-      //   }
-      // }
-      // else
-        _pushIntervalF(intervals, c.r, nullptr, lb, ub, dx, dy);
+      _pushIntervalF(intervals, c.r, nullptr, lb, ub, dx, dy);
     }
   }
 }

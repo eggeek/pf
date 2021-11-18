@@ -58,15 +58,6 @@ class rect_jump_point_locator
         _goal_rid = map_->get_rid(_goalx, _goaly);
         padded_goal_id = map_->gmap->to_padded_id(_goalx, _goaly);
       }
-      // if (rect->h * rect->w <= minstep) {
-      //   int sidx = jpts_.size();
-      //   jpl->jump(d, map_->gmap.to_padded_id(_curx, _cury), padded_goal_id,
-      //       jpts_, costs_);
-      //   for (int i=sidx; i<(int)jpts_.size(); i++) {
-      //     jpts_[i] = map_->gmap.to_unpadded_id(jpts_[i]);
-      //   }
-      //   return;
-      // }
       if (rect->rid == _goal_rid) {
         jpts_.push_back(cur_goal_id_);
       }
@@ -115,8 +106,8 @@ class rect_jump_point_locator
     void scanInterval(int lb, int ub, Rect* cur_rect, int dx, int dy) {
 
       queue<Interval> &intervals = dx? intervals_v: intervals_h;
-      cur_rect->set_mark(lb, r2e.at({dx, dy, rdirect::B}), ub);
-      cur_rect->set_mark(ub, r2e.at({dx, dy, rdirect::B}), lb);
+      cur_rect->set_mark(lb, R2E(dx, dy, rdirect::B), ub);
+      cur_rect->set_mark(ub, R2E(dx, dy, rdirect::B), lb);
       intervals.push({lb, ub, cur_rect});
       _pushInterval(intervals, dx, dy);
     }
@@ -132,8 +123,12 @@ class rect_jump_point_locator
       costs_.clear();
     }
 
-	private:
-    // const int minstep=0;
+    void set_minarea(int v) {minarea = v;}
+    void set_minstep(int v) {minstep = v;}
+
+  private:
+    int minarea = 128;
+    int minstep = 8;
 		int cur_goal_id_;
     uint32_t padded_goal_id;
 		int cur_node_id_;
@@ -183,65 +178,68 @@ class rect_jump_point_locator
           break;
         }
 
-        // try to move interval (xlb, xub) to the front, 
-        // find jpt if the path is on L/R border
-        if (_scanLR(rect, dx>0?xlb: xub, cury, 0, dy))
-          dx>0?xlb++: xub--;
-        // try to move interval (ylb, yub) to the front
-        // find jpt if the path is on L/R border
-        if (_scanLR(rect, curx, dy>0?ylb: yub, dx, 0))
-          dy>0?ylb++: yub--;
-
         vertD = rect->disF(0, dy, curx, cury);
         horiD = rect->disF(dx, 0, curx, cury);
         d  = min(vertD, horiD);
-        dx > 0? xub += d: xlb -= d;
-        dy > 0? yub += d: ylb -= d;
-
-        curx += dx*d;
-        cury += dy*d;
-        node_id += map_->mapw * d*dy + d*dx;
-
-        // scan on border
-        if (d > 0) {
-          if (vertD >= horiD) {
-            int node_id = INF;
-            if (_find_jpt(rect, dx>0?eposition::E: eposition::W, 
-                          curx, cury, 0, dy, node_id)) {
-              jpts_.push_back((uint32_t)node_id);
-              dx>0?xub--: xlb++;
-            }
+        if (d+1 <= minstep) {
+          for (int i=0; i<=d; i++) {
+            _block_scan(curx+i*dx, cury+i*dy, dx, 0);
+            _block_scan(curx+i*dx, cury+i*dy, 0, dy);
           }
-          if (horiD >= vertD) {
-            int node_id = INF;
-            if (_find_jpt(rect, dy>0?eposition::S: eposition::N, 
-                          curx, cury, dx, 0, node_id)) {
-              jpts_.push_back((uint32_t)node_id);
-              dy>0?yub--: ylb++;
-            }
-          }
+          curx += dx*d;
+          cury += dy*d;
+          node_id += map_->mapw *d*dx + d*dy;
+          rect = move_diag();
+          xlb = xub = curx;
+          ylb = yub = cury;
         }
         else {
+          // Check jump points before make diagonal move:
+          // try to move interval (xlb, xub) to the front, 
+          // find jpt if the path is on L/R border
+          if (_scanLR(rect, dx>0?xlb: xub, cury, 0, dy))
+            dx>0?xlb++: xub--;
+          // try to move interval (ylb, yub) to the front
+          // find jpt if the path is on L/R border
+          if (_scanLR(rect, curx, dy>0?ylb: yub, dx, 0))
+            dy>0?ylb++: yub--;
+
+          dx > 0? xub += d: xlb -= d;
+          dy > 0? yub += d: ylb -= d;
+
+          curx += dx*d;
+          cury += dy*d;
+          node_id += map_->mapw * d*dy + d*dx;
+
+          // Check jump points after make diagonal move in the rectangle
           if (xlb <= xub && _scanLR(rect, curx, cury, 0, dy))
             dx>0?xub--: xlb++;
           if (ylb <= yub && _scanLR(rect, curx, cury, dx, 0))
             dy>0?yub--: ylb++;
-        }
         
-        Rect* nxt_rect = move_diag();
+          // Move out the rectangle
+          Rect* nxt_rect = move_diag();
+          // if (nxt_rect != nullptr && nxt_rect->h*nxt_rect->w <= minarea) {
+          //   // if the next rect is small we wouldn't continue
+          //   // but we will need to call _pushIntervalF to store
+          //   // intervals that need to be scanned, so we cannot just break
+          //   _block_scan(curx-dx, cury-dy, dx, dy);
+          //   nxt_rect = nullptr;
+          // }
 
-        if (xlb <= xub)
-          _pushIntervalF(intervals_h, rect, nxt_rect, xlb, xub, 0, dy);
-        if (ylb <= yub) 
-          _pushIntervalF(intervals_v, rect, nxt_rect, ylb, yub, dx, 0);
-        // reset [xlb, xub] and [ylb, yub] if there are invalid
-        // otherwise extend ub/lb to curx/cury
-        if (xlb > xub || xlb == INF) xlb = xub = curx;
-        else dx > 0? xub=curx: xlb=curx;
-        if (ylb > yub || ylb == INF) ylb = yub = cury;
-        else dy > 0? yub=cury: ylb=cury;
+          if (xlb <= xub)
+            _pushIntervalF(intervals_h, rect, nullptr, xlb, xub, 0, dy);
+          if (ylb <= yub) 
+            _pushIntervalF(intervals_v, rect, nullptr, ylb, yub, dx, 0);
+          // reset [xlb, xub] and [ylb, yub] if there are invalid
+          // otherwise extend ub/lb to curx/cury
+          if (xlb > xub || xlb == INF) xlb = xub = curx;
+          else dx > 0? xub=curx: xlb=curx;
+          if (ylb > yub || ylb == INF) ylb = yub = cury;
+          else dy > 0? yub=cury: ylb=cury;
 
-        rect = nxt_rect;
+          rect = nxt_rect;
+        }
       }
       _pushInterval(intervals_h, 0, dy);
       _pushInterval(intervals_v, dx, 0);
@@ -264,17 +262,17 @@ class rect_jump_point_locator
       int jpid, d2F;
       bool onL = false, onR = false;
 
-      // d2F = cur_rect->disF(dx, dy, curx, cury);
-      // if (d2F < minstep) {
-      //   _block_scan(curx, cury, dx, dy);
-      //   return;
-      // }
+      d2F = cur_rect->disF(dx, dy, curx, cury);
+      if (d2F < minstep) {
+        _block_scan(curx, cury, dx, dy);
+        return;
+      }
 
       onL = cur_rect->disLR(rdirect::L, dx, dy, curx, cury) == 0;
       onR = cur_rect->disLR(rdirect::R, dx, dy, curx, cury) == 0;
 
       auto move_fwd = [&]() {
-        cure = r2e.at({dx, dy, rdirect::F});
+        cure = R2E(dx, dy, rdirect::F);
         d2F = cur_rect->disF(dx, dy, curx, cury);
         switch (dx) {
           case 0:
@@ -285,11 +283,6 @@ class rect_jump_point_locator
             break;
         }
       };
-
-      // if (d2F < minstep) {
-      //   _block_scan(curx, cury, dx, dy);
-      //   return;
-      // }
       
       // inside, then move to the forward edge
       if (cure == eposition::I) {
@@ -298,12 +291,11 @@ class rect_jump_point_locator
 
       // we need to explicitly check jump points if on border L/R
       if (onL)
-        cure = r2e.at({dx, dy, rdirect::L});
+        cure = R2E(dx, dy, rdirect::L);
       else if (onR)
-        cure = r2e.at({dx, dy, rdirect::R});
+        cure = R2E(dx, dy, rdirect::R);
 
-      assert(e2r.find({dx, dy, cure}) != e2r.end());
-      curp = e2r.at({dx, dy, cure});
+      curp = E2R(dx, dy, cure);
 
       while (true) {
         // when the cur rect contains the goal
@@ -318,10 +310,25 @@ class rect_jump_point_locator
           case rdirect::L:
           case rdirect::R:
           {
-            bool res = _find_jpt(cur_rect, cure, curx, cury, dx, dy, jpid);
-            if (res) {
-              jpts_.push_back((uint32_t)jpid);
-              return;
+            if (cur_rect->disF(dx, dy, curx, cury) > minstep) {
+              bool res = _find_jpt(cur_rect, cure, curx, cury, dx, dy, jpid);
+              if (res) {
+                jpts_.push_back((uint32_t)jpid);
+                return;
+              }
+            }
+            else {
+              size_t sidx = jpts_.size();
+              jpl->jump(jps::v2d(dx, dy), 
+                  map_->gmap->to_padded_id(curx, cury), padded_goal_id,
+                jpts_, costs_);
+              for (size_t i=sidx; i<jpts_.size(); i++) {
+                jpts_[i] = map_->gmap->to_unpadded_id(jpts_[i]);
+                int tx, ty;
+                map_->to_xy(jpts_[i], tx, ty);
+              }
+              // found jump point
+              if (sidx < jpts_.size()) return;
             }
           }
           // cross the rect
@@ -341,17 +348,17 @@ class rect_jump_point_locator
 
             // move to adjacent rect in (dx, dy)
             curx += dx, cury += dy;
-            cure = r2e.at({dx, dy, rdirect::B});
+            cure = R2E(dx, dy, rdirect::B);
             cur_rect = &(map_->rects[rid]);
             onL = cur_rect->disLR(rdirect::L, dx, dy, curx, cury) == 0;
             onR = cur_rect->disLR(rdirect::R, dx, dy, curx, cury) == 0;
 
             // we need to explicitly check jump points if on border L/R
             if (onL)
-              cure = r2e.at({dx, dy, rdirect::L});
+              cure = R2E(dx, dy, rdirect::L);
             else if (onR)
-              cure = r2e.at({dx, dy, rdirect::R});
-            curp = e2r.at({dx, dy, cure});
+              cure = R2E(dx, dy, rdirect::R);
+            curp = E2R(dx, dy, cure);
           } break;
         }
       }

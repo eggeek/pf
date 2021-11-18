@@ -18,6 +18,7 @@
 
 #include "gm_parser.h"
 #include "gridmap.h"
+#include "jps.h"
 namespace warthog {
 namespace rectscan {
 
@@ -64,52 +65,138 @@ enum rdirect {
 };
 
 // given move direction, return the edge id in the relative direction
-const map<tuple<int, int, rdirect>, eposition> r2e = {
-  // north move
-  {{0, -1, rdirect::B}, eposition::S},
-  {{0, -1, rdirect::L}, eposition::W},
-  {{0, -1, rdirect::F}, eposition::N},
-  {{0, -1, rdirect::R}, eposition::E},
-  // south move
-  {{0, 1,  rdirect::B}, eposition::N},
-  {{0, 1,  rdirect::L}, eposition::E},
-  {{0, 1,  rdirect::F}, eposition::S},
-  {{0, 1,  rdirect::R}, eposition::W},
-  // east move
-  {{1, 0,  rdirect::B}, eposition::W},
-  {{1, 0,  rdirect::L}, eposition::N},
-  {{1, 0,  rdirect::F}, eposition::E},
-  {{1, 0,  rdirect::R}, eposition::S},
-  // west move
-  {{-1, 0, rdirect::B}, eposition::E},
-  {{-1, 0, rdirect::L}, eposition::S},
-  {{-1, 0, rdirect::F}, eposition::W},
-  {{-1, 0, rdirect::R}, eposition::N},
+// const map<tuple<int, int, rdirect>, eposition> r2e = {
+//   // north move
+//   {{0, -1, rdirect::B}, eposition::S},
+//   {{0, -1, rdirect::L}, eposition::W},
+//   {{0, -1, rdirect::F}, eposition::N},
+//   {{0, -1, rdirect::R}, eposition::E},
+//   // south move
+//   {{0, 1,  rdirect::B}, eposition::N},
+//   {{0, 1,  rdirect::L}, eposition::E},
+//   {{0, 1,  rdirect::F}, eposition::S},
+//   {{0, 1,  rdirect::R}, eposition::W},
+//   // east move
+//   {{1, 0,  rdirect::B}, eposition::W},
+//   {{1, 0,  rdirect::L}, eposition::N},
+//   {{1, 0,  rdirect::F}, eposition::E},
+//   {{1, 0,  rdirect::R}, eposition::S},
+//   // west move
+//   {{-1, 0, rdirect::B}, eposition::E},
+//   {{-1, 0, rdirect::L}, eposition::S},
+//   {{-1, 0, rdirect::F}, eposition::W},
+//   {{-1, 0, rdirect::R}, eposition::N},
+// };
+
+inline eposition R2E(const int& dx, const int& dy, const rdirect& rd) {
+  warthog::jps::direction d = jps::v2d(dx, dy);
+  switch(d) {
+    case jps::NORTH:
+      switch(rd) {
+        case rdirect::B: return eposition::S;
+        case rdirect::L: return eposition::W;
+        case rdirect::F: return eposition::N;
+        case rdirect::R: return eposition::E;
+      }
+    case jps::SOUTH:
+      switch(rd) {
+        case rdirect::B: return eposition::N;
+        case rdirect::L: return eposition::E;
+        case rdirect::F: return eposition::S;
+        case rdirect::R: return eposition::W;
+      }
+    case jps::EAST:
+      switch(rd) {
+        case rdirect::B: return eposition::W;
+        case rdirect::L: return eposition::N;
+        case rdirect::F: return eposition::E;
+        case rdirect::R: return eposition::S;
+      }
+    case jps::WEST:
+      switch(rd) {
+        case rdirect::B: return eposition::E;
+        case rdirect::L: return eposition::S;
+        case rdirect::F: return eposition::W;
+        case rdirect::R: return eposition::N;
+      }
+    default:
+      assert(false);
+      return eposition::I;
+  }
+}
+
+inline rdirect E2R(const int& dx, const int& dy, const eposition& ep) {
+  jps::direction d = jps::v2d(dx, dy);
+  switch(d) {
+    case jps::NORTH:
+      switch (ep) {
+        case eposition::N: return rdirect::F;
+        case eposition::E: return rdirect::R;
+        case eposition::S: return rdirect::B;
+        case eposition::W: return rdirect::L;
+        default:
+          assert(false);
+          return rdirect::F;
+      }
+    case jps::SOUTH:
+      switch (ep) {
+        case eposition::N: return rdirect::B;
+        case eposition::E: return rdirect::L;
+        case eposition::S: return rdirect::F;
+        case eposition::W: return rdirect::R;
+        default:
+          assert(false);
+          return rdirect::F;
+      }
+    case jps::EAST:
+      switch (ep) {
+        case eposition::N: return rdirect::L;
+        case eposition::E: return rdirect::F;
+        case eposition::S: return rdirect::R;
+        case eposition::W: return rdirect::B;
+        default:
+          assert(false);
+          return rdirect::F;
+      }
+    case jps::WEST:
+      switch (ep) {
+        case eposition::N: return rdirect::R;
+        case eposition::E: return rdirect::B;
+        case eposition::S: return rdirect::L;
+        case eposition::W: return rdirect::F;
+        default:
+          assert(false);
+          return rdirect::F;
+      }
+    default:
+      assert(false);
+      return rdirect::F;
+  }
 };
 
 // given move direction, return the edge id in the relative direction
-const map<tuple<int, int, eposition>, rdirect> e2r = {
-  // north move
-  {{0, -1, eposition::N}, rdirect::F},
-  {{0, -1, eposition::E}, rdirect::R},
-  {{0, -1, eposition::S}, rdirect::B},
-  {{0, -1, eposition::W}, rdirect::L},
-  // south move
-  {{0, 1,  eposition::N}, rdirect::B},
-  {{0, 1,  eposition::E}, rdirect::L},
-  {{0, 1,  eposition::S}, rdirect::F},
-  {{0, 1,  eposition::W}, rdirect::R},
-  // east move
-  {{1, 0,  eposition::N}, rdirect::L},
-  {{1, 0,  eposition::E}, rdirect::F},
-  {{1, 0,  eposition::S}, rdirect::R},
-  {{1, 0,  eposition::W}, rdirect::B},
-  // west move
-  {{-1, 0,  eposition::N}, rdirect::R},
-  {{-1, 0,  eposition::E}, rdirect::B},
-  {{-1, 0,  eposition::S}, rdirect::L},
-  {{-1, 0,  eposition::W}, rdirect::F},
-};
+// const map<tuple<int, int, eposition>, rdirect> e2r = {
+//   // north move
+//   {{0, -1, eposition::N}, rdirect::F},
+//   {{0, -1, eposition::E}, rdirect::R},
+//   {{0, -1, eposition::S}, rdirect::B},
+//   {{0, -1, eposition::W}, rdirect::L},
+//   // south move
+//   {{0, 1,  eposition::N}, rdirect::B},
+//   {{0, 1,  eposition::E}, rdirect::L},
+//   {{0, 1,  eposition::S}, rdirect::F},
+//   {{0, 1,  eposition::W}, rdirect::R},
+//   // east move
+//   {{1, 0,  eposition::N}, rdirect::L},
+//   {{1, 0,  eposition::E}, rdirect::F},
+//   {{1, 0,  eposition::S}, rdirect::R},
+//   {{1, 0,  eposition::W}, rdirect::B},
+//   // west move
+//   {{-1, 0,  eposition::N}, rdirect::R},
+//   {{-1, 0,  eposition::E}, rdirect::B},
+//   {{-1, 0,  eposition::S}, rdirect::L},
+//   {{-1, 0,  eposition::W}, rdirect::F},
+// };
 
 class Rect {
   public:
@@ -200,7 +287,7 @@ class Rect {
   // distance to border F
   // return >= 0
   inline int disF(int dx, int dy, int curx, int cury) const {
-    int ax = axis(r2e.at({dx, dy, rdirect::F}));
+    int ax = axis(R2E(dx, dy, rdirect::F));
     return dx * (ax - curx) + dy * (ax - cury);
   }
 
@@ -208,13 +295,14 @@ class Rect {
   // L: <0
   // R: >0
   inline int disLR(rdirect p, int dx, int dy, int curx, int cury) const {
-    int ax = axis(r2e.at({dx, dy, p}));
+    int ax = axis(R2E(dx, dy, p));
     return dy * (ax - curx) + dx * (ax - cury);
   }
 
   inline bool onLR(rdirect p, int dx, int dy, int curx, int cury) const {
-    int ax = axis(r2e.at({dx, dy, p}));
-    return ((dy & (ax ^ curx))) == 0 && ((dx & (ax ^ cury))) == 0;
+    int ax = axis(R2E(dx, dy, p));
+    return (dy * (ax - curx) + dx * (ax - cury)) == 0;
+    // return ((dy && (ax ^ curx))) == 0 && ((dx && (ax ^ cury))) == 0;
   }
 
   inline void get_range(const int& eid, int& lb, int& ub) const {
