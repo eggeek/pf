@@ -14,6 +14,7 @@
 #include <limits>
 #include <queue>
 #include <vector>
+#include <algorithm>
 
 namespace warthog {
 namespace rectscan {
@@ -103,13 +104,12 @@ class rect_jump_point_locator
 
 		int mem() { return sizeof(this); }
 
-    void scanInterval(int lb, int ub, Rect* cur_rect, int dx, int dy) {
+    template<int dx, int dy>
+    void scanInterval(int lb, int ub, Rect* cur_rect) {
 
       queue<Interval> &intervals = dx? intervals_v: intervals_h;
-      cur_rect->set_mark(lb, R2E(dx, dy, rdirect::B), ub);
-      cur_rect->set_mark(ub, R2E(dx, dy, rdirect::B), lb);
       intervals.push({lb, ub, cur_rect});
-      _pushInterval(intervals, dx, dy);
+      _pushInterval<dx, dy>(intervals);
     }
 
     vector<uint32_t>& get_jpts() { return jpts_; }
@@ -125,6 +125,26 @@ class rect_jump_point_locator
 
     void set_minarea(int v) {minarea = v;}
     void set_minstep(int v) {minstep = v;}
+
+    template<int dx, int dy>
+    uint32_t inline neis_const() {
+      switch (dy) {
+        case 1:
+          switch (dx) {
+            // SOUTHEAST <1, 1>
+            case 1: return 394752;
+            // SOUTHWEST <1, -1>
+            default: return 197376;
+          }
+        default:
+          switch (dx) {
+            // NORTHEAST <1, -1> 
+            case 1: return 1542;
+            // NORTHWEST <-1, -1>
+            default: return 771;
+          }
+      }
+    }
 
   private:
     int minarea = 128;
@@ -144,234 +164,451 @@ class rect_jump_point_locator
     };
     queue<Interval> intervals_h, intervals_v;
 
-    bool _find_jpt(Rect* cur_rect, eposition cure, int curx, int cury, 
-        int dx, int dy, int& node_id);
+  bool _find_jpt(Rect* cur_rect, eposition cure, 
+      int curx, int cury, int dx, int dy, int& node_id) {
+    int x, y;
+    bool res = false;
+    vector<int> *jpts;
+    vector<int>::iterator it;
+    cost_t cost = INF;
+    node_id = INF;
 
-    template<int dx, int dy>
-    void _scanDiag(int node_id, Rect* rect) {
-      int curx, cury, vertD, horiD, d, xlb, xub, ylb, yub;
-      auto move_diag = [&]() {
-        if (map_->get_rid(curx+dx, cury) != -1 &&
-            map_->get_rid(curx, cury+dy) != -1 &&
-            map_->get_rid(curx+dx, cury+dy) != -1) {
-          curx += dx, cury += dy;
-          node_id += map_->mapw * dy + dx;
-          return map_->get_rect(curx, cury);
+    int curid = map_->to_id(curx, cury);
+
+    auto find = [&](eposition e) {
+      if (dx + dy > 0) {
+        // find min jpt in jptf > node id
+        jpts = &(cur_rect->jptf[e]);
+        // jpts in jptf stores in ascend order
+        it = std::upper_bound(jpts->begin(), jpts->end(), curid);
+      }
+      else {
+        // find max jpt in jptr < node id
+        jpts = &(cur_rect->jptr[e]);
+        // jpts in jptr stores in descend order
+        it = std::upper_bound(jpts->begin(), jpts->end(), curid, greater<int>());
+      }
+    };
+
+    find(cure);
+    if (it != jpts->end()) {
+      node_id = *it;
+      map_->to_xy(node_id, x, y);
+      cost = octile_dist(curx, cury, x, y);
+      res = true;
+    }
+    // if the rect is a line (or dot)
+    if ((dx?cur_rect->h: cur_rect->w) == 1) {
+      // we also need to check another side
+      find(eposition(cure^2));
+      if (it != jpts->end()) {
+        map_->to_xy(*it, x, y);
+        cost_t new_cost = octile_dist(curx, cury, x, y);
+        if (new_cost < cost) {
+          node_id = *it;
+          cost = new_cost;
+          res = true;
         }
-        else return (rectscan::Rect*)nullptr;
-      };
-
-
-      assert(intervals_h.size() == 0);
-      assert(intervals_v.size() == 0);
-
-      map_->to_xy(node_id, curx, cury);
-      rect = move_diag();
-      xlb = xub = curx;
-      ylb = yub = cury;
-      while (rect != nullptr) {
-        jps::scan_cnt++;
-
-        // if reach the rect that contains the goal
-        if (rect->rid == _goal_rid) {
-          jpts_.push_back(map_->to_id(curx, cury));
-          break;
-        }
-
-        vertD = rect->disF(0, dy, curx, cury);
-        horiD = rect->disF(dx, 0, curx, cury);
-        d  = min(vertD, horiD);
-        if (d+1 <= minstep) {
-          for (int i=0; i<=d; i++) {
-            _block_scan(curx+i*dx, cury+i*dy, dx, 0);
-            _block_scan(curx+i*dx, cury+i*dy, 0, dy);
-          }
-          curx += dx*d;
-          cury += dy*d;
-          node_id += map_->mapw *d*dx + d*dy;
-          rect = move_diag();
-          xlb = xub = curx;
-          ylb = yub = cury;
+      }
+    }
+    // move to adjacent rect
+    if (!res) {
+      int d2F = cur_rect->disF(dx, dy, curx, cury);
+      int cur_mask, nxt_mask;
+      curx += dx * d2F;
+      cury += dy * d2F;
+      if (map_->get_rid(curx+dx, cury+dy) != -1) {
+        if (dx) {
+          cur_mask = map_->get_maskw(curx, cury);
+          nxt_mask = map_->get_maskw(curx+dx, cury+dy);
         }
         else {
-          // Check jump points before make diagonal move:
-          // try to move interval (xlb, xub) to the front, 
-          // find jpt if the path is on L/R border
-          if (_scanLR(rect, dx>0?xlb: xub, cury, 0, dy))
-            dx>0?xlb++: xub--;
-          // try to move interval (ylb, yub) to the front
-          // find jpt if the path is on L/R border
-          if (_scanLR(rect, curx, dy>0?ylb: yub, dx, 0))
-            dy>0?ylb++: yub--;
-
-          dx > 0? xub += d: xlb -= d;
-          dy > 0? yub += d: ylb -= d;
-
-          curx += dx*d;
-          cury += dy*d;
-          node_id += map_->mapw * d*dy + d*dx;
-
-          // Check jump points after make diagonal move in the rectangle
-          if (xlb <= xub && _scanLR(rect, curx, cury, 0, dy))
-            dx>0?xub--: xlb++;
-          if (ylb <= yub && _scanLR(rect, curx, cury, dx, 0))
-            dy>0?yub--: ylb++;
-        
-          // Move out the rectangle
-          Rect* nxt_rect = move_diag();
-          // if (nxt_rect != nullptr && nxt_rect->h*nxt_rect->w <= minarea) {
-          //   // if the next rect is small we wouldn't continue
-          //   // but we will need to call _pushIntervalF to store
-          //   // intervals that need to be scanned, so we cannot just break
-          //   _block_scan(curx-dx, cury-dy, dx, dy);
-          //   nxt_rect = nullptr;
-          // }
-
-          if (xlb <= xub)
-            _pushIntervalF(intervals_h, rect, nullptr, xlb, xub, 0, dy);
-          if (ylb <= yub) 
-            _pushIntervalF(intervals_v, rect, nullptr, ylb, yub, dx, 0);
-          // reset [xlb, xub] and [ylb, yub] if there are invalid
-          // otherwise extend ub/lb to curx/cury
-          if (xlb > xub || xlb == INF) xlb = xub = curx;
-          else dx > 0? xub=curx: xlb=curx;
-          if (ylb > yub || ylb == INF) ylb = yub = cury;
-          else dy > 0? yub=cury: ylb=cury;
-
-          rect = nxt_rect;
+          cur_mask = map_->get_maskh(curx, cury);
+          nxt_mask = map_->get_maskh(curx+dx, cury+dy);
+        }
+        if (map_->isjptr[cur_mask][nxt_mask]) {
+          node_id = map_->to_id(curx+dx, cury+dy);
+          res = true;
         }
       }
-      _pushInterval(intervals_h, 0, dy);
-      _pushInterval(intervals_v, dx, 0);
-    }
+    } 
+    return res;
+  }
 
-    bool _scanLR(Rect* r, int curx, int cury, int dx, int dy);
+  template<int dx, int dy>
+  void _scanDiag(int node_id, Rect* rect) {
+    int curx, cury, vertD, horiD, d, xlb, xub, ylb, yub;
+    uint32_t neis;
+    auto move_diag = [&]() {
+      uint32_t padded_id = map_->gmap->to_padded_id(curx, cury);
+      map_->gmap->get_neighbours(padded_id, (uint8_t*)&neis);
+      // if cannot make the first diagonal move
+      if ((neis & neis_const<dx, dy>()) != neis_const<dx, dy>())
+        return (rectscan::Rect*)nullptr;
+      else {
+        curx += dx, cury += dy;
+        node_id += map_->mapw*dy + dx;
+        return map_->get_rect(curx, cury);
+      }
+    };
 
-    void _pushIntervalF(queue<Interval>& intervals, Rect* r, Rect* nxt, int& lb, int& ub, int dx, int dy);
-    void _pushInterval(queue<Interval>& intervals, int dx, int dy);
 
-    template<int dx, int dy>
-    void _scan(int node_id, Rect* cur_rect) {
+    assert(intervals_h.size() == 0);
+    assert(intervals_v.size() == 0);
 
-      rdirect curp;
-      eposition cure;
-      int curx, cury;
-      map_->to_xy(node_id, curx, cury);
-      cure = cur_rect->pos(curx, cury);
+    map_->to_xy(node_id, curx, cury);
+    rect = move_diag();
+    xlb = xub = curx;
+    ylb = yub = cury;
+    while (rect != nullptr) {
+      jps::scan_cnt++;
 
-      int jpid, d2F;
-      bool onL = false, onR = false;
-
-      d2F = cur_rect->disF(dx, dy, curx, cury);
-      if (d2F < minstep) {
-        _block_scan(curx, cury, dx, dy);
-        return;
+      // if reach the rect that contains the goal
+      if (rect->rid == _goal_rid) {
+        jpts_.push_back(map_->to_id(curx, cury));
+        break;
       }
 
-      onL = cur_rect->disLR(rdirect::L, dx, dy, curx, cury) == 0;
-      onR = cur_rect->disLR(rdirect::R, dx, dy, curx, cury) == 0;
-
-      auto move_fwd = [&]() {
-        cure = R2E(dx, dy, rdirect::F);
-        d2F = cur_rect->disF(dx, dy, curx, cury);
-        switch (dx) {
-          case 0:
-            cury += dy * d2F;
-            break;
-          default:
-            curx += dx * d2F;
-            break;
+      vertD = rect->disF(0, dy, curx, cury);
+      horiD = rect->disF(dx, 0, curx, cury);
+      d  = min(vertD, horiD);
+      if (d+1 <= minstep) {
+        for (int i=0; i<=d; i++) {
+          _block_scan<dx, 0>(curx+i*dx, cury+i*dy);
+          _block_scan<0, dy>(curx+i*dx, cury+i*dy);
         }
-      };
+        curx += dx*d;
+        cury += dy*d;
+        node_id += map_->mapw *d*dx + d*dy;
+        rect = move_diag();
+        xlb = xub = curx;
+        ylb = yub = cury;
+      }
+      else {
+        // Check jump points before make diagonal move:
+        // try to move interval (xlb, xub) to the front, 
+        // find jpt if the path is on L/R border
+        if (_scanLR<0, dy>(rect, dx>0?xlb: xub, cury))
+          dx>0?xlb++: xub--;
+        // try to move interval (ylb, yub) to the front
+        // find jpt if the path is on L/R border
+        if (_scanLR<dx, 0>(rect, curx, dy>0?ylb: yub))
+          dy>0?ylb++: yub--;
+
+        dx > 0? xub += d: xlb -= d;
+        dy > 0? yub += d: ylb -= d;
+
+        curx += dx*d;
+        cury += dy*d;
+        node_id += map_->mapw * d*dy + d*dx;
+
+        // Check jump points after make diagonal move in the rectangle
+        if (xlb <= xub && _scanLR<0, dy>(rect, curx, cury))
+          dx>0?xub--: xlb++;
+        if (ylb <= yub && _scanLR<dx, 0>(rect, curx, cury))
+          dy>0?yub--: ylb++;
       
-      // inside, then move to the forward edge
-      if (cure == eposition::I) {
-        move_fwd();
-      }
+        // Move out the rectangle
+        Rect* nxt_rect = move_diag();
 
-      // we need to explicitly check jump points if on border L/R
-      if (onL)
-        cure = R2E(dx, dy, rdirect::L);
-      else if (onR)
-        cure = R2E(dx, dy, rdirect::R);
+        if (xlb <= xub)
+          _pushIntervalF<0, dy>(intervals_h, rect, nullptr, xlb, xub);
+        if (ylb <= yub) 
+          _pushIntervalF<dx, 0>(intervals_v, rect, nullptr, ylb, yub);
+        // reset [xlb, xub] and [ylb, yub] if there are invalid
+        // otherwise extend ub/lb to curx/cury
+        if (xlb > xub || xlb == INF) xlb = xub = curx;
+        else dx > 0? xub=curx: xlb=curx;
+        if (ylb > yub || ylb == INF) ylb = yub = cury;
+        else dy > 0? yub=cury: ylb=cury;
 
-      curp = E2R(dx, dy, cure);
-
-      while (true) {
-        // when the cur rect contains the goal
-        if (cur_rect->rid == _goal_rid) {
-          jpts_.push_back(map_->to_id(curx, cury));
-          break;
-        }
-        jps::scan_cnt++;
-        switch (curp) {
-          // base case
-          // on verticle border
-          case rdirect::L:
-          case rdirect::R:
-          {
-            if (cur_rect->disF(dx, dy, curx, cury) > minstep) {
-              bool res = _find_jpt(cur_rect, cure, curx, cury, dx, dy, jpid);
-              if (res) {
-                jpts_.push_back((uint32_t)jpid);
-                return;
-              }
-            }
-            else {
-              size_t sidx = jpts_.size();
-              jpl->jump(jps::v2d(dx, dy), 
-                  map_->gmap->to_padded_id(curx, cury), padded_goal_id,
-                jpts_, costs_);
-              for (size_t i=sidx; i<jpts_.size(); i++) {
-                jpts_[i] = map_->gmap->to_unpadded_id(jpts_[i]);
-                int tx, ty;
-                map_->to_xy(jpts_[i], tx, ty);
-              }
-              // found jump point
-              if (sidx < jpts_.size()) return;
-            }
-          }
-          // cross the rect
-          case rdirect::B:
-          {
-            // move to the end of the border in this direction
-            // and going to move to adjacent rect
-            move_fwd();
-            curp = rdirect::F;
-          }
-          // move to adjacent rect
-          case rdirect::F:
-          {
-            int rid = map_->get_rid(curx+dx, cury+dy);
-            if (rid == -1)  // no adjacent, dead end
-              return;
-
-            // move to adjacent rect in (dx, dy)
-            curx += dx, cury += dy;
-            cure = R2E(dx, dy, rdirect::B);
-            cur_rect = &(map_->rects[rid]);
-            onL = cur_rect->disLR(rdirect::L, dx, dy, curx, cury) == 0;
-            onR = cur_rect->disLR(rdirect::R, dx, dy, curx, cury) == 0;
-
-            // we need to explicitly check jump points if on border L/R
-            if (onL)
-              cure = R2E(dx, dy, rdirect::L);
-            else if (onR)
-              cure = R2E(dx, dy, rdirect::R);
-            curp = E2R(dx, dy, cure);
-          } break;
-        }
+        rect = nxt_rect;
       }
     }
+    _pushInterval<0, dy>(intervals_h);
+    _pushInterval<dx, 0>(intervals_v);
+  }
 
-    inline void _block_scan(int curx, int cury, int dx, int dy) {
-      jps::direction d = jps::v2d(dx, dy);
-      int sidx = jpts_.size();
-      jpl->jump(d, map_->gmap->to_padded_id(curx, cury), padded_goal_id,
+  template<int dx, int dy>
+  inline bool _scanLR(Rect* r, int curx, int cury) {
+    // int node_id = INF;
+    bool onL = r->onLR(rdirect::L, dx, dy, curx, cury);
+    bool onR = r->onLR(rdirect::R, dx, dy, curx, cury);
+    if ( onL || onR) {
+      if (r->disF(dx, dy, curx, cury) > minstep) {
+        int node_id;
+        if (_find_jpt(r, R2E(dx, dy, onL?rdirect::L: rdirect::R), curx, cury, dx, dy, node_id)) {
+          jpts_.push_back((uint32_t)node_id);
+          return true;
+        }
+        else return false;
+      }
+      else {
+        size_t sidx = jpts_.size();
+        jpl->jump(jps::v2d(dx, dy), map_->gmap->to_padded_id(curx, cury), padded_goal_id,
           jpts_, costs_);
-      for (int i=sidx; i<(int)jpts_.size(); i++)
-        jpts_[i] = map_->gmap->to_unpadded_id(jpts_[i]);
+        for (size_t i=sidx; i<jpts_.size(); i++) {
+          jpts_[i] = map_->gmap->to_unpadded_id(jpts_[i]);
+          int tx, ty;
+          map_->to_xy(jpts_[i], tx, ty);
+          //      << "at (" << tx << ", " << ty << ") " << jpts_[i] << endl;
+        }
+        return true;
+      }
     }
+    return false;
+  }
+
+  // Precondition:
+  // interval [lb, ub] is on F border of curr
+  // push [lb, ub] in forward direction,
+  // push adjacent intervals to FIFO
+  // nxtr is the next rect ptr in (dx, dy)
+  // if nxtr is not nullptr, 
+  // the `adjacent` interval in nxtr wouldn't be pushed to FIFO
+  // instead, it will update lb and ub, 
+  // so that [lb, ub] can be projected in the next diagonal move
+  //
+  // Postcondition: [lb, ub] is in the nxtr if exist, 
+  // otherwise set to INF.
+  //
+  template<int dx, int dy>
+  inline void _pushIntervalF(
+      queue<Interval>& intervals, Rect* curr, Rect* nxtr, 
+      int &lb, int &ub) {
+
+    // cerr << "push interval forward, dx: " << dx << ", dy: " << dy
+    //      << "[" << lb << ", " << ub << "]" << endl;
+    // interval is on F border now
+    eposition cure = R2E(dx, dy, rdirect::F);
+    eposition nxte = R2E(dx, dy, rdirect::B);
+    int newLb=INF, newUb=INF;
+    Rect* nxtRect = nullptr;
+
+    auto bs = [&]() {
+      int s=0, t=curr->adj[cure].size()-1, l=0, r=0;
+      int best=t+1;
+
+      while (s<=t) {
+        int m = (s+t)>>1;
+        map_->rects[curr->adj[cure][m]].get_range(nxte, l, r);
+        if (r < lb) s=m+1;
+        else {
+          best = m;
+          t=m-1;
+        }
+      }
+      return best;
+    };
+
+    int sidx = bs();
+    for (int i=sidx; i<(int)curr->adj[cure].size(); i++) {
+      int rid = curr->adj[cure][i];
+      // the adjacent rect contains the goal
+      Rect* r = &(map_->rects[rid]);
+
+      int rL=0, rR=0, hori, vertL, vertR;
+      r->get_range(cure, rL, rR);
+      if (rL > ub) break;
+      rL = max(rL, lb); 
+      rR = min(rR, ub);
+
+      if (rid == _goal_rid) {
+        rL = max(rL, lb);
+        rR = min(rR, ub);
+        int ax = r->axis(nxte);
+        int x, y;
+        if (dx == 0) {
+          y = ax;
+          if (rL <= _goalx && _goalx <= rR) x=_goalx;
+          else if (rL > _goalx) x=rL;
+          else x=rR;
+        }
+        else {
+          x = ax;
+          if (rL <= _goaly && _goaly <= rR) y=_goaly;
+          else if (rL > _goaly) y=rL;
+          else y=rR;
+        }
+        jpts_.push_back(map_->to_id(x, y));
+        // a shorter path may pass another interval,
+        // so we should continue instead of break
+        continue;
+      }
+
+      hori = r->axis(nxte);
+      vertL = r->axis(dx?eposition::N: eposition::W);
+      if (lb <= vertL && vertL <= ub) {
+        if (_scanLR<dx, dy>(r, dx?hori: vertL, dx?vertL: hori))
+          rL++;
+      }
+      vertR = r->axis(dx?eposition::S: eposition::E);
+      if (vertL != vertR && lb <= vertR && vertR <= ub) {
+        if (_scanLR<dx, dy>(r, dx?hori:vertR, dx?vertR:hori))
+          rR--;
+      }
+      if (rL <= rR) {
+        if (nxtr != nullptr && r == nxtr) {
+          assert(newLb == INF);
+          assert(newUb == INF);
+          newLb = rL;
+          newUb = rR;
+        }
+        else {
+          intervals.push({rL, rR, r});
+        }
+      }
+    }
+    lb = newLb, ub = newUb;
+  }
+
+  // interval [lb, ub] in rectangle at B border
+  template<int dx, int dy>
+  void _pushInterval(queue<Interval>& intervals) {
+    int ax, lb, ub;
+    eposition cure = R2E(dx, dy, rdirect::B);
+
+    while (!intervals.empty()) {
+      Interval c = intervals.front(); intervals.pop();
+      ax = c.r->axis(cure);
+      lb = c.lb, ub = c.ub;
+      jps::scan_cnt++;
+      // if it is short, we will use normal block based scanning
+      int d2F = c.r->disF(dx, dy, dx?ax: lb, dx?lb: ax);
+      if (d2F*(ub-lb+1) <= minarea) {
+        for (int i=lb; i<=ub; i++) {
+          _block_scan<dx, dy>(dx?ax: i, dx?i: ax);
+        }
+        continue;
+      }
+      // the coordinate of interval [lb, ub]
+      // dy=0 then ax is y-axis otherwise it is x-axis
+      // is lb on L/R border
+      if (_scanLR<dx, dy>(c.r, dx?ax: lb, dx?lb: ax)) 
+        lb++;
+      if (c.lb != c.ub && _scanLR<dx, dy>(c.r, dx?ax: ub, dx?ub: ax))
+        ub--;
+      if (lb <= ub) {
+        _pushIntervalF<dx, dy>(intervals, c.r, nullptr, lb, ub);
+      }
+    }
+  }
+
+  template<int dx, int dy>
+  void _scan(int node_id, Rect* cur_rect) {
+
+    rdirect curp;
+    eposition cure;
+    int curx, cury;
+    map_->to_xy(node_id, curx, cury);
+    cure = cur_rect->pos(curx, cury);
+
+    int jpid, d2F;
+    bool onL = false, onR = false;
+
+    d2F = cur_rect->disF(dx, dy, curx, cury);
+    if (d2F < minstep) {
+      _block_scan<dx, dy>(curx, cury);
+      return;
+    }
+
+    onL = cur_rect->disLR(rdirect::L, dx, dy, curx, cury) == 0;
+    onR = cur_rect->disLR(rdirect::R, dx, dy, curx, cury) == 0;
+
+    auto move_fwd = [&]() {
+      cure = R2E(dx, dy, rdirect::F);
+      d2F = cur_rect->disF(dx, dy, curx, cury);
+      switch (dx) {
+        case 0:
+          cury += dy * d2F;
+          break;
+        default:
+          curx += dx * d2F;
+          break;
+      }
+    };
+    
+    // inside, then move to the forward edge
+    if (cure == eposition::I) {
+      move_fwd();
+    }
+
+    // we need to explicitly check jump points if on border L/R
+    if (onL)
+      cure = R2E(dx, dy, rdirect::L);
+    else if (onR)
+      cure = R2E(dx, dy, rdirect::R);
+
+    curp = E2R(dx, dy, cure);
+
+    while (true) {
+      // when the cur rect contains the goal
+      if (cur_rect->rid == _goal_rid) {
+        jpts_.push_back(map_->to_id(curx, cury));
+        break;
+      }
+      jps::scan_cnt++;
+      switch (curp) {
+        // base case
+        // on verticle border
+        case rdirect::L:
+        case rdirect::R:
+        {
+          if (cur_rect->disF(dx, dy, curx, cury) > minstep) {
+            bool res = _find_jpt(cur_rect, cure, curx, cury, dx, dy, jpid);
+            if (res) {
+              jpts_.push_back((uint32_t)jpid);
+              return;
+            }
+          }
+          else {
+            if (_block_scan<dx, dy>(curx, cury))
+              return;
+          }
+        }
+        // cross the rect
+        case rdirect::B:
+        {
+          // move to the end of the border in this direction
+          // and going to move to adjacent rect
+          move_fwd();
+          curp = rdirect::F;
+        }
+        // move to adjacent rect
+        case rdirect::F:
+        {
+          int rid = map_->get_rid(curx+dx, cury+dy);
+          if (rid == -1)  // no adjacent, dead end
+            return;
+
+          // move to adjacent rect in (dx, dy)
+          curx += dx, cury += dy;
+          cure = R2E(dx, dy, rdirect::B);
+          cur_rect = &(map_->rects[rid]);
+          onL = cur_rect->disLR(rdirect::L, dx, dy, curx, cury) == 0;
+          onR = cur_rect->disLR(rdirect::R, dx, dy, curx, cury) == 0;
+
+          // we need to explicitly check jump points if on border L/R
+          if (onL)
+            cure = R2E(dx, dy, rdirect::L);
+          else if (onR)
+            cure = R2E(dx, dy, rdirect::R);
+          curp = E2R(dx, dy, cure);
+        } break;
+      }
+    }
+  }
+
+  template<int dx, int dy>
+  inline bool _block_scan(int curx, int cury) {
+    jps::direction d = jps::v2d(dx, dy);
+    size_t sidx = jpts_.size();
+    jpl->jump(d, map_->gmap->to_padded_id(curx, cury), padded_goal_id,
+        jpts_, costs_);
+    for (size_t i=sidx; i<jpts_.size(); i++)
+      jpts_[i] = map_->gmap->to_unpadded_id(jpts_[i]);
+    return sidx < jpts_.size();
+  }
 };
 
 }}
