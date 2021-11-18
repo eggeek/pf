@@ -92,7 +92,9 @@ class gridmap
 		inline uint32_t
 		to_padded_id(uint32_t x, uint32_t y)
 		{
-			return to_padded_id(y * this->header_width() + x);
+      return y*this->header_width()+x + padded_rows_before_first_row_*padded_width_ +
+        y * padding_per_row_;
+			// return to_padded_id(y * this->header_width() + x);
 		}
 
 		inline void
