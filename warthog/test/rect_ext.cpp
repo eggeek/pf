@@ -80,6 +80,7 @@ int convex_delta(const vector<Interval>& h) {
   }
   int res = min(resL, resR);
   for (int k=i+1; k<=j-1; k++) {
+    if (h[k].lb <= 1) return 0;
     res = min(res, h[k].lb-1);
   }
   return res;
@@ -88,12 +89,14 @@ int convex_delta(const vector<Interval>& h) {
 int _expand_rect_y(
     int y, int& xl, int& xu,
     int bL, int bU,
+    int rid, vector<int>& idmap,
     warthog::jps::direction d,
     online_jump_point_locator2* jpl) {
   // number of horizontal obstacle at xl-1 and xu+1
   // the expand distance cannot be larger this
   int dL = INF, dU = INF, dx, dy;
   int maph = jpl->get_map()->header_height();
+  int mapw = jpl->get_map()->header_width();
   d2v(d, dx, dy);
   // dont expand if on border of map
   if (y+dy < 0 || y+dy>=maph) return 0;
@@ -112,25 +115,37 @@ int _expand_rect_y(
   for (int i=xl; i<=xu; i++) {
     Interval inv = {0, 0};
     inv.lb = jpl->tilecnt(d, map->to_padded_id(i, y));
-    inv.ub = inv.lb;
-    if (0<=y+inv.lb*dy&&y+inv.lb*dy<maph)
-      inv.ub += jpl->tilecnt(d, map->to_padded_id(i, y+inv.lb*dy))-1;
+    REQUIRE(inv.lb > 0);
 
+    // not in map
+    if (y+dy*inv.lb<0 || y+dy*inv.lb>=maph) {
+      inv.ub = inv.lb;
+    }
+    // (i, y+/-inv.lb*dy) is traversable implies it has been marked by other rectangle
+    else if (idmap[(y+inv.lb*dy)*mapw+i] != -1) {
+      inv.lb--; // then we cannot expand to that position
+      inv.ub = inv.lb;
+    }
+    else {
+      // normal case: "...@@@."
+      // the upper bound is extended by the number of continuous obstacles
+      inv.ub = inv.lb + jpl->tilecnt(d, map->to_padded_id(i, y+inv.lb*dy))-1;
+    }
     h.push_back(inv);
-    REQUIRE(h.back().lb > 0);
   }
   int _xl = xl;
   int res = convex_delta(h);
   res = min(min(dL, dU), res);
   // update open intervals
-  while (xl<=xu && h[xl-_xl].lb <= res) xl++;
-  while (xu>=xl && h[xu-_xl].lb <= res) xu--;
+  while (res && xl<=xu && h[xl-_xl].lb <= res) xl++;
+  while (res && xu>=xl && h[xu-_xl].lb <= res) xu--;
   return res;
 }
 
 int _expand_rect_x(
     int x, int& yl, int& yu,
     int bL, int bU,
+    int rid, vector<int>& idmap,
     warthog::jps::direction d,
     online_jump_point_locator2* jpl) {
   // number of vertical obstacle at yl-1 and yu+1
@@ -150,20 +165,32 @@ int _expand_rect_x(
   vector<Interval> h;
   warthog::gridmap* map = jpl->get_map();
   for (int i=yl; i<=yu; i++) {
-    Interval inv;
+    Interval inv = {0, 0};
     inv.lb = jpl->tilecnt(d, map->to_padded_id(x, i));
-    inv.ub = inv.lb;
-    if (0<=x+dx*inv.lb && x+dx*inv.lb < mapw)
-      inv.ub += jpl->tilecnt(d, map->to_padded_id(x+dx*inv.lb, i))-1;
+    REQUIRE(inv.lb > 0);
+
+    // not in map
+    if (x+dx*inv.lb<0 || x+dx*inv.lb>=mapw) {
+      inv.ub = inv.lb;
+    }
+    // (i+/-inv.lb*dx, y) is traversable implies it has been marked by other rectangle
+    else if (idmap[i*mapw+x+inv.lb*dx] != -1) {
+      inv.lb--; // then we cannot expand to that position
+      inv.ub = inv.lb;
+    }
+    else {
+      // normal case: "...@@@."
+      // the upper bound is extended by the number of continuous obstacles
+      inv.ub = inv.lb + jpl->tilecnt(d, map->to_padded_id(x+dx*inv.lb, i))-1;
+    }
     h.push_back(inv);
-    REQUIRE(h.back().lb > 0);
   }
   int _yl = yl;
   int res = convex_delta(h);
   res = min(min(dL, dU), res);
-  // update open intervals
-  while (yl<=yu && h[yl-_yl].lb <= res) yl++;
-  while (yu>=yl && h[yu-_yl].lb <= res) yu--;
+  // update open intervals when res > 0
+  while (res && yl<=yu && h[yl-_yl].lb <= res) yl++;
+  while (res && yu>=yl && h[yu-_yl].lb <= res) yu--;
   return res;
 }
 
@@ -183,7 +210,7 @@ bool is_convex_obs_seq(vector<int> nums) {
   return true;
 }
 
-bool is_convex(int xl, int yl, int xu, int yu, int sx, int sy, vector<bool>& f, online_jump_point_locator2* jpl) {
+bool is_convex(int xl, int yl, int xu, int yu, int sx, int sy, int rid, vector<int>& idmap, online_jump_point_locator2* jpl) {
   // expanded rectangle: top-left (xl, yl) bottom-right (xu, yu)
   // seed position (sx, sy) a traversable tile of the original empty rectangle
   // the function check whether the traversable component is "convex" in the expanded rectangle by:
@@ -193,8 +220,7 @@ bool is_convex(int xl, int yl, int xu, int yu, int sx, int sy, vector<bool>& f, 
   // 3. get the left outline, ....
   // 4. get the right outline, ...
   warthog::gridmap* gmap = jpl->get_map();
-  int h = gmap->header_height(), w = gmap->header_width();
-  f = vector<bool>(h*w, false);
+  int w = gmap->header_width();
   queue<Point> q;
   Point tl, tr, bl, br;
   tl = tr = bl = br = Point{sx, sy};
@@ -202,7 +228,6 @@ bool is_convex(int xl, int yl, int xu, int yu, int sx, int sy, vector<bool>& f, 
   q.push({sx, sy});
   while (!q.empty()) {
     Point c = q.front(); q.pop();
-    f[ c.y * w + c.x] = true;
     if ((c.x == tl.x && c.y < tl.y) || c.x < tl.x) tl = c;
     if ((c.x == tr.x && c.y < tr.y) || c.x > tr.x) tr = c;
     if ((c.x == bl.x && c.y > bl.y) || c.x < bl.x) bl = c;
@@ -217,11 +242,13 @@ bool is_convex(int xl, int yl, int xu, int yu, int sx, int sy, vector<bool>& f, 
       // not in the rectangle
       if (nxt.x < xl || nxt.x > xu) continue;
       if (nxt.y < yl || nxt.y > yu) continue;
-      // has been marked
-      if (f[nxt.y*w+nxt.x]) continue;
       // not traversable
-      if (!gmap->get_label(gmap->to_padded_id(nxt.x, nxt.y))) continue;
-      f[nxt.y*w+nxt.x] = true;
+      if (idmap[nxt.y*w+nxt.x] == -1) continue;
+      // has been marked
+      if (idmap[nxt.y*w+nxt.x] == rid) continue;
+      // it is illegal if (x, y) is marked by other rectangle
+      REQUIRE(idmap[nxt.y*w+nxt.x] == 0);
+      idmap[nxt.y*w+nxt.x] = rid;
       q.push(nxt);
     }
   }
@@ -291,32 +318,42 @@ bool is_convex(int xl, int yl, int xu, int yu, int sx, int sy, vector<bool>& f, 
   return true;
 }
 
-void print_cell(uint32_t cid, warthog::gridmap* gmap, string cs) {
-  if (gmap->get_label(cid)) printf("%c", cs[0]);
-  else printf("%c", cs[1]);
+void print_cell(int x, int y, vector<int>& idmap, warthog::gridmap* gmap, string cs) {
+  if (x<0 || x>=(int)gmap->header_width() || y<0 || y>=(int)gmap->header_height()) {
+    printf("%c", cs[1]);
+    return;
+  }
+  int id = y * gmap->header_width() + x;
+  REQUIRE(id >= 0);
+  REQUIRE(id < idmap.size());
+  if (idmap[id] == -1) printf("%c", cs[1]);
+  else {
+    if (idmap[id]) printf("%d", (idmap[id]-1) % 10);
+    else printf("%c", cs[0]);
+  }
 }
 
-void print_rect_map(int xl, int yl, int xu, int yu, warthog::gridmap* gmap) {
+void print_rect_map(int xl, int yl, int xu, int yu, vector<int>& idmap, warthog::gridmap* gmap) {
   int pad = 1;
   printf("xl: %d yl: %d xu: %d yu: %d pad: %d\n", xl, yl, xu, yu, pad);
   // print above pad row
   for (int y=yl-pad; y<yl; y++) {
     for (int x=xl-pad; x<=xu+pad; x++) {
-      print_cell(gmap->to_padded_id(x, y), gmap, ".@");
+      print_cell(x, y, idmap, gmap, ".@");
     }
     printf("\n");
   }
   // print NORTH border
   // print left pad columns
   for (int x=xl-pad; x<xl; x++) {
-    print_cell(gmap->to_padded_id(x, yl), gmap, ".@");
+    print_cell(x, yl, idmap, gmap, ".@");
   }
   for (int x=xl; x<=xu; x++) {
-    print_cell(gmap->to_padded_id(x, yl), gmap, "-*");
+    print_cell(x, yl, idmap, gmap, "-*");
   }
   // print right pad columns
   for (int x=xu+1; x<=xu+pad; x++) {
-    print_cell(gmap->to_padded_id(x, yl), gmap, ".@");
+    print_cell(x, yl, idmap, gmap, ".@");
   }
 
   printf("\n");
@@ -325,37 +362,37 @@ void print_rect_map(int xl, int yl, int xu, int yu, warthog::gridmap* gmap) {
     
     // print left pad column
     for (int x=xl-pad; x<xl; x++) {
-      print_cell(gmap->to_padded_id(x, y), gmap, ".@");
+      print_cell(x, y, idmap, gmap, ".@");
     }
-    print_cell(gmap->to_padded_id(xl, y), gmap, "|*");
+    print_cell(xl, y, idmap, gmap, "|*");
     for (int x=xl+1; x<xu; x++) {
-      print_cell(gmap->to_padded_id(x, y), gmap, ".@");
+      print_cell(x, y, idmap, gmap, ".@");
     }
-    print_cell(gmap->to_padded_id(xu, y), gmap, "|*");
+    print_cell(xu, y, idmap, gmap, "|*");
     // print right pad column
     for (int x=xu+1; x<=xu+pad; x++) {
-      print_cell(gmap->to_padded_id(x, y), gmap, ".@");
+      print_cell(x, y, idmap, gmap, ".@");
     }
     printf("\n");
   }
   // print SOUTH border
   // print left pad columns
   for (int x=xl-pad; x<xl; x++) {
-    print_cell(gmap->to_padded_id(x, yu), gmap, ".@");
+    print_cell(x, yu, idmap, gmap, ".@");
   }
   for (int x=xl; x<=xu && yu>yl; x++) {
-    print_cell(gmap->to_padded_id(x, yu), gmap, "-*");
+    print_cell(x, yu, idmap, gmap, "-*");
   }
   // print right pad columns
   for (int x=xu+1; x<=xu+pad; x++) {
-    print_cell(gmap->to_padded_id(x, yu), gmap, ".@");
+    print_cell(x, yu, idmap, gmap, ".@");
   }
   printf("\n");
 
   // print below pad row
   for (int y=yu+1; y<=yu+pad; y++) {
     for (int x=xl-pad; x<=xu+pad; x++) {
-      print_cell(gmap->to_padded_id(x, y), gmap, ".@");
+      print_cell(x, y, idmap, gmap, ".@");
     }
     printf("\n");
   }
@@ -383,13 +420,31 @@ inline void update_interval_y(Interval& inv, int yl, int yu, int x, online_jump_
   inv.ub = min(yu, inv.ub+step);
 }
 
-bool expand_rect(int& xl, int& yl, int& xu, int& yu, online_jump_point_locator2* jpl) {
+void check_open_border_x(int y, int xl, int xu, int rid, Interval& inv, vector<int>& idmap, warthog::gridmap* gmap) {
+  for (int i=xl; i<=xu; i++) {
+    int id = y*gmap->header_width() + i;
+    REQUIRE(id >= 0);
+    if (i>=inv.lb && i<=inv.ub) REQUIRE(idmap[id] == rid);
+    else REQUIRE(idmap[id] != rid);
+  }
+}
+
+void check_open_border_y(int x, int yl, int yu, int rid, Interval& inv, vector<int>& idmap, warthog::gridmap* gmap) {
+  for (int y=yl; y<=yu; y++) {
+    int id = y*gmap->header_width() + x;
+    REQUIRE(id >= 0);
+    if (y>=inv.lb && y<=inv.ub) REQUIRE(idmap[id] == rid);
+    else REQUIRE(idmap[id] != rid);
+  }
+}
+
+bool expand_rect(int& xl, int& yl, int& xu, int& yu, int rid, vector<int>& idmap, online_jump_point_locator2* jpl) {
   int sx = xl, sy = yl;
   warthog::gridmap* gmap = jpl->get_map();
 
   if (verbose) {
     printf("before:\n");
-    print_rect_map(xl, yl, xu, yu, gmap);
+    print_rect_map(xl, yl, xu, yu, idmap, gmap);
   }
   // track the intervals that are still open.
   // as we don't expand the border if it is completely closed (by obstacles)
@@ -404,49 +459,49 @@ bool expand_rect(int& xl, int& yl, int& xu, int& yu, online_jump_point_locator2*
   // Expand NORTH
   if (invs[0].lb <= invs[0].ub) {
     update_interval_x(invs[0], xl, xu, yl, jpl, gmap);
-    delta = _expand_rect_y(yl, invs[0].lb, invs[0].ub, xl, xu, NORTH, jpl);
+    delta = _expand_rect_y(yl, invs[0].lb, invs[0].ub, xl, xu, rid, idmap, NORTH, jpl);
     yl -= delta;
     res |= (delta > 0);
   }
-  if (verbose) {
+  if (verbose && delta) {
     printf("expand north, delta=%d\n", delta);
-    print_rect_map(xl, yl, xu, yu, gmap);
+    print_rect_map(xl, yl, xu, yu, idmap, gmap);
   }
 
   // Expand EAST
   if (invs[1].lb <= invs[1].ub) {
     update_interval_y(invs[1], yl, yu, xu, jpl, gmap);
-    delta = _expand_rect_x(xu, invs[1].lb, invs[1].ub, yl, yu, EAST, jpl);
+    delta = _expand_rect_x(xu, invs[1].lb, invs[1].ub, yl, yu, rid, idmap, EAST, jpl);
     xu += delta;
     res |= (delta > 0);
   }
-  if (verbose) {
+  if (verbose && delta) {
     printf("expand east, delta=%d\n", delta);
-    print_rect_map(xl, yl, xu, yu, gmap);
+    print_rect_map(xl, yl, xu, yu, idmap, gmap);
   }
 
   // Expand SOUTH
   if (invs[2].lb <= invs[2].ub) {
     update_interval_x(invs[2], xl, xu, yu, jpl, gmap);
-    delta = _expand_rect_y(yu, invs[2].lb, invs[2].ub, xl, xu, SOUTH, jpl);
+    delta = _expand_rect_y(yu, invs[2].lb, invs[2].ub, xl, xu, rid, idmap, SOUTH, jpl);
     yu += delta;
     res |= (delta > 0);
   }
-  if (verbose) {
+  if (verbose && delta) {
     printf("expand south, delta=%d\n", delta);
-    print_rect_map(xl, yl, xu, yu, gmap);
+    print_rect_map(xl, yl, xu, yu, idmap, gmap);
   }
 
   // Expand WEST
   if (invs[3].lb <= invs[3].ub) {
     update_interval_y(invs[3], yl, yu, xl, jpl, gmap);
-    delta = _expand_rect_x(xl, invs[3].lb, invs[3].ub, yl, yu, WEST, jpl);
+    delta = _expand_rect_x(xl, invs[3].lb, invs[3].ub, yl, yu, rid, idmap, WEST, jpl);
     xl -= delta;
     res |= (delta > 0);
   }
-  if (verbose) {
+  if (verbose && delta) {
     printf("expand west, delta=%d\n", delta);
-    print_rect_map(xl, yl, xu, yu, gmap);
+    print_rect_map(xl, yl, xu, yu, idmap, gmap);
   }
 
   if (invs[0].lb <= invs[0].ub) update_interval_x(invs[0], xl, xu, yl, jpl, gmap); // N
@@ -454,69 +509,94 @@ bool expand_rect(int& xl, int& yl, int& xu, int& yu, online_jump_point_locator2*
   if (invs[2].lb <= invs[2].ub) update_interval_x(invs[2], xl, xu, yu, jpl, gmap); // S
   if (invs[3].lb <= invs[3].ub) update_interval_y(invs[3], yl, yu, xl, jpl, gmap); // W
 
-  vector<bool> flag;
-  REQUIRE(is_convex(xl, yl, xu, yu, sx, sy, flag, jpl));
+  REQUIRE(is_convex(xl, yl, xu, yu, sx, sy, rid, idmap, jpl));
+
+  // mark all open tiles on border to be non-traversable
+  // to guarantee no overlapping between ext-rectangles's traversable area
+  for (int x=invs[0].lb; x<=invs[0].ub; x++)
+    gmap->set_label(gmap->to_padded_id(x, yl), false);
+  for (int y=invs[1].lb; y<=invs[1].ub; y++)
+    gmap->set_label(gmap->to_padded_id(xu, y), false);
+  for (int x=invs[2].lb; x<=invs[2].ub; x++)
+    gmap->set_label(gmap->to_padded_id(x, yu), false);
+  for (int y=invs[3].lb; y<=invs[3].ub; y++)
+    gmap->set_label(gmap->to_padded_id(xl, y), false);
 
   // sanity checking NORTH border
-  for (int i=xl; i<=xu; i++) {
-    int id = yl*gmap->header_width() + i;
-    REQUIRE(id >= 0);
-    REQUIRE(id < flag.size());
-    if (i>=invs[0].lb && i<=invs[0].ub) REQUIRE(flag[id]);
-    else REQUIRE(!flag[id]);
-  }
-
+  check_open_border_x(yl, xl, xu, rid, invs[0], idmap, gmap);
   // sanity checking EAST border
-  for (int i=yl; i<=yu; i++) {
-    int id = i*gmap->header_width()+xu;
-    REQUIRE(id >= 0);
-    REQUIRE(id < flag.size());
-    if (i>=invs[1].lb && i<=invs[1].ub) REQUIRE(flag[id]);
-    else REQUIRE(!flag[id]);
-  }
-
+  check_open_border_y(xu, yl, yu, rid, invs[1], idmap, gmap);
   // sanity checking SOUTH border
-  for (int i=xl; i<=xu; i++) {
-    int id = yu*gmap->header_width()+i;
-    REQUIRE(id >= 0);
-    REQUIRE(id < flag.size());
-    if (i>=invs[2].lb && i<=invs[2].ub) REQUIRE(flag[id]);
-    else REQUIRE(!flag[id]);
-  }
-
+  check_open_border_x(yu, xl, xu, rid, invs[2], idmap, gmap);
   // sanity checking WEST border
-  for (int i=yl; i<=yu; i++) {
-    int id = i*gmap->header_width()+xl;
-    REQUIRE(id >= 0);
-    REQUIRE(id < flag.size());
-    if (i>=invs[3].lb && i<=invs[3].ub) REQUIRE(flag[id]);
-    else REQUIRE(!flag[id]);
-  }
+  check_open_border_y(xl, yl, yu, rid, invs[3], idmap, gmap);
   return res;
 }
 
 bool cmp(const Rect& a, const Rect& b) {
-  return (a.w*a.h) >= (b.w*b.h);
+  return (a.w*a.h) > (b.w*b.h);
 }
 
 void run_ext_rect(string rfile) {
   RectMap rmap(rfile.c_str());
   rect_jump_point_locator rjpl(&rmap);
+
+  // init rectangle list
   sort(rmap.rects.begin(), rmap.rects.end(), cmp);
+  vector<int> idmap(rmap.mapw*rmap.maph, 0);
+
+  // init idmaps
+  for (int y=0; y<rmap.maph; y++)
+  for (int x=0; x<rmap.mapw; x++)
+  if (!rmap.gmap->get_label(rmap.gmap->to_padded_id(x, y)))
+    idmap[y*rmap.mapw+x] = -1;
+
   for (int i=0; i<min(10, (int)rmap.rects.size()); i++) {
     Rect& r = rmap.rects[i];
     int xl=r.x, yl=r.y, xu=r.x+r.w-1, yu=r.y+r.h-1;
+
     printf("i=%d\n", i);
-    if (expand_rect(xl, yl, xu, yu, rjpl.get_jpl())) {
+
+    bool flag = false;
+    for (int y=yl; y<=yu && !flag; y++)
+    for (int x=xl; x<=xu && !flag; x++) 
+    if (idmap[y*rmap.mapw+x] != 0) {
+      flag = true;
+      break;
+    }
+
+    if (verbose) {
+      printf("before:%s\n", flag?"broken rectangle": " ");
+      print_rect_map(r.x, r.y, r.x+r.w-1, r.y+r.h-1, idmap, rjpl.get_jpl()->get_map());
+    }
+
+    if (!flag && expand_rect(xl, yl, xu, yu, i+1, idmap, rjpl.get_jpl())) {
       if (verbose) {
-        printf("before:\n");
-        print_rect_map(r.x, r.y, r.x+r.w-1, r.y+r.h-1, rjpl.get_jpl()->get_map());
         printf("after:\n");
-        print_rect_map(xl, yl, xu, yu, rjpl.get_jpl()->get_map());
+        print_rect_map(xl, yl, xu, yu, idmap, rjpl.get_jpl()->get_map());
       }
     }
   }
 }
+
+// void gen_ext_rect(string mapfile) {
+//   warthog::gridmap* gmap = new warthog::gridmap(mapfile.c_str());
+//   online_jump_point_locator2* jpl = new online_jump_point_locator2(gmap);
+//   vector<int> idmap(gmap->header_height()*gmap->header_width(), 0);
+//   int mapw = gmap->header_width(), maph = gmap->header_height(), cntr=0;
+//   for (int y=0; y<gmap->header_height(); y++)
+//   for (int x=0; x<gmap->header_width(); x++)
+//   if (!gmap->get_label(gmap->to_padded_id(x, y))) {
+//     idmap[y*mapw+x] = -1;
+//   }
+//
+//   for (int y=0; y<gmap->header_height(); y++)
+//   for (int x=0; x<gmap->header_width(); x++)
+//   if (idmap[y*mapw+x]==0) {
+//     int xl=x, yl=y, xu=x, yu=y;
+//     expand_rect(xl, yl, xu, yu, jpl);
+//   }
+// }
 
 TEST_CASE("ext-rect") {
   vector<string> rectids = {
