@@ -50,6 +50,43 @@ inline uint32_t calc_stopbits_simd(gridmap* gmap, uint32_t id,
   return id;
 }
 
+inline void interval_block_scan(gridmap* gmap, int x, int yl, int yu,
+    vector<uint32_t>& jpts) {
+  uint32_t neis[3];
+  uint32_t force_bits, deadend_bits, stopbits;
+  for (int y=yl; y<=yu; y++) {
+    int curid = gmap->to_padded_id(x, y);
+    stopbits = 0;
+    while (!stopbits) {
+      gmap->get_neighbours_32bit(curid, neis);
+      force_bits = (~neis[0] << 1) & neis[0];
+      force_bits |= (~neis[2] << 1) & neis[2];
+      deadend_bits = ~neis[1];
+      stopbits = force_bits | deadend_bits;
+      curid += 31;
+    }
+    jpts.push_back(stopbits);
+  }
+}
+
+inline void simd_interval_block_scan(gridmap* gmap, int x, int yl, int yu,
+    vector<uint32_t>& jpts, SIMD_tiles& s, int step=6) {
+  int y = yl, tx = x;
+  while (y+step-1 <= yu) {
+    uint32_t cid = gmap->to_padded_id(x, y);
+    gmap->get_neighbours_32bit_simd(cid, s);
+    while (_mm256_movemask_epi8(~s.v) == 0) {
+      cid += 31;
+      tx += 31;
+      gmap->get_neighbours_32bit_simd(cid, s);
+    }
+    interval_block_scan(gmap, tx, y, y+step-1, jpts);
+    y += step;
+  }
+  if (y <= yu)
+    interval_block_scan(gmap, x, y, yu, jpts);
+}
+
 inline uint32_t calc_stopbits(gridmap* gmap, uint32_t id, uint32_t maxid,
     uint32_t neis[3],
     uint32_t& force_bits,
@@ -65,6 +102,64 @@ inline uint32_t calc_stopbits(gridmap* gmap, uint32_t id, uint32_t maxid,
   deadend_bits = ~neis[1];
   stopbits = force_bits | deadend_bits;
   return id;
+}
+
+TEST_CASE("simd-interval") {
+  vector<string> maps = {
+    "./data/CatwalkAlley_1.map", "./data/CatwalkAlley_2.map",
+    "./data/CatwalkAlley_4.map", "./data/CatwalkAlley_8.map",
+    "./data/scene_sp_endmaps_1.map", "./data/scene_sp_endmaps_2.map",
+    "./data/scene_sp_endmaps_4.map", "./data/scene_sp_endmaps_8.map",
+    "./data/GreenerPastures_1.map", "./data/GreenerPastures_2.map",
+    "./data/GreenerPastures_4.map", "./data/GreenerPastures_8.map",
+  };
+  srand(0);
+  warthog::timer t;
+  vector<uint32_t> jpts, jpts_simd;
+  uint64_t tcost_simd, tcost_norm;
+  jpts.reserve(4096);
+  jpts_simd.reserve(4096);
+  int maxl = 8;
+  SIMD_tiles s;
+  string header = "simd\tnorm\tspeed-up";
+  for (auto& m: maps) {
+    cout << "map: " << m << endl;
+    gridmap* gmap = new gridmap(m.c_str());
+    cout << header << endl;
+    vector<int> xs;
+    for (int i=0; i<(int)gmap->header_width(); i++) xs.push_back(i);
+    random_shuffle(xs.begin(), xs.end());
+    jpts.clear();
+    jpts_simd.clear();
+    t.start();
+    for (int x: xs) {
+      for (int y=0; y+maxl<(int)gmap->header_height(); y+=maxl) {
+        interval_block_scan(gmap, x, y, y+maxl-1, jpts);
+      }
+    }
+    t.stop();
+    tcost_norm = t.elapsed_time_nano();
+
+    t.reset();
+    t.start();
+    for (int x: xs) {
+      for (int y=0; y+maxl<(int)gmap->header_height(); y+=maxl) {
+        simd_interval_block_scan(gmap, x, y, y+maxl-1, jpts_simd, s);
+      }
+    }
+    t.stop();
+    tcost_simd = t.elapsed_time_nano();
+    cout << tcost_simd << "\t" << tcost_norm << "\t"
+         << (double)tcost_norm / (double)tcost_simd << endl;
+    //
+    // REQUIRE(jpts.size() == jpts_simd.size());
+    // sort(jpts.begin(), jpts.end());
+    // sort(jpts_simd.begin(), jpts_simd.end());
+    // for (int i=0; i<(int)jpts.size(); i++)
+    //   REQUIRE(jpts[i] == jpts_simd[i]);
+
+    delete gmap;
+  }
 }
 
 TEST_CASE("simd-calc") {
