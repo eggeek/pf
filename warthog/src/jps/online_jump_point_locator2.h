@@ -42,11 +42,23 @@ class online_jump_point_locator2
 				std::vector<uint32_t>& jpoints,
 				std::vector<warthog::cost_t>& costs);
 
+    // number of step can move in direction d before reach deadend
+    int rayscan(warthog::jps::direction d, uint32_t node_id);
+    // number of tiles int direction d, that with same traversability of current
+    int tilecnt(warthog::jps::direction d, uint32_t node_id);
+
 		size_t 
 		mem()
 		{
 			return sizeof(this) + rmap_->mem();
 		}
+
+    warthog::gridmap* get_map() { return map_; }
+    warthog::gridmap* get_rmap() { return rmap_; }
+
+    int naive_rayscan(warthog::jps::direction d, uint32_t node_id);
+    int _block_rayscan_east(gridmap* gmap, uint32_t node_id);
+    int _block_rayscan_west(gridmap* gmap, uint32_t node_id);
 
 	private:
 		void

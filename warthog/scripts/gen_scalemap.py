@@ -249,7 +249,7 @@ def scale_up(mapfile: str, r: int):
 def scale_up_scen(sfile: str, r: int):
     header = ["bucket_id", "map", "h", "w", "sx", "sy", "tx", "ty", "ref_dist"]
     import pandas as pd
-    df: pd.DataFrame = pd.read_csv(sfile, skiprows=1, sep='\t', header=0, names=header)
+    df: pd.DataFrame = pd.read_csv(sfile, skiprows=1, sep=r'\s+', header=0, names=header)
     df['bucket_id'] *= r
     df['h'] *= r
     df['w'] *= r

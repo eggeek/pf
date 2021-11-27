@@ -146,9 +146,11 @@ class rect_jump_point_locator
       }
     }
 
+    jps::online_jump_point_locator2* get_jpl() { return jpl; }
+
   private:
     int minarea = 128;
-    int minstep = 8;
+    int minstep = 32;
 		int cur_goal_id_;
     uint32_t padded_goal_id;
 		int cur_node_id_;
@@ -164,7 +166,7 @@ class rect_jump_point_locator
     };
     queue<Interval> intervals_h, intervals_v;
 
-  bool _find_jpt(Rect* cur_rect, eposition cure, 
+  inline bool _find_jpt(Rect* cur_rect, eposition cure, 
       int curx, int cury, int dx, int dy, int& node_id) {
     int x, y;
     bool res = false;
@@ -237,7 +239,7 @@ class rect_jump_point_locator
 
   template<int dx, int dy>
   void _scanDiag(int node_id, Rect* rect) {
-    int curx, cury, vertD, horiD, d, xlb, xub, ylb, yub;
+    int curx, cury, d, xlb, xub, ylb, yub;
     uint32_t neis;
     auto move_diag = [&]() {
       uint32_t padded_id = map_->gmap->to_padded_id(curx, cury);
@@ -269,9 +271,7 @@ class rect_jump_point_locator
         break;
       }
 
-      vertD = rect->disF(0, dy, curx, cury);
-      horiD = rect->disF(dx, 0, curx, cury);
-      d  = min(vertD, horiD);
+      d = rect->diagD<dx, dy>(curx, cury);
       if (d+1 <= minstep) {
         for (int i=0; i<=d; i++) {
           _block_scan<dx, 0>(curx+i*dx, cury+i*dy);
@@ -335,7 +335,7 @@ class rect_jump_point_locator
     bool onL = r->onLR(rdirect::L, dx, dy, curx, cury);
     bool onR = r->onLR(rdirect::R, dx, dy, curx, cury);
     if ( onL || onR) {
-      if (r->disF(dx, dy, curx, cury) > minstep) {
+      if (r->disF(dx, dy, curx, cury) > (minstep << 1)) {
         int node_id;
         if (_find_jpt(r, R2E(dx, dy, onL?rdirect::L: rdirect::R), curx, cury, dx, dy, node_id)) {
           jpts_.push_back((uint32_t)node_id);
@@ -344,15 +344,7 @@ class rect_jump_point_locator
         else return false;
       }
       else {
-        size_t sidx = jpts_.size();
-        jpl->jump(jps::v2d(dx, dy), map_->gmap->to_padded_id(curx, cury), padded_goal_id,
-          jpts_, costs_);
-        for (size_t i=sidx; i<jpts_.size(); i++) {
-          jpts_[i] = map_->gmap->to_unpadded_id(jpts_[i]);
-          int tx, ty;
-          map_->to_xy(jpts_[i], tx, ty);
-          //      << "at (" << tx << ", " << ty << ") " << jpts_[i] << endl;
-        }
+        _block_scan<dx, dy>(curx, cury);
         return true;
       }
     }
@@ -383,7 +375,7 @@ class rect_jump_point_locator
     eposition cure = R2E(dx, dy, rdirect::F);
     eposition nxte = R2E(dx, dy, rdirect::B);
     int newLb=INF, newUb=INF;
-    Rect* nxtRect = nullptr;
+    // Rect* nxtRect = nullptr;
 
     auto bs = [&]() {
       int s=0, t=curr->adj[cure].size()-1, l=0, r=0;
@@ -475,10 +467,8 @@ class rect_jump_point_locator
       jps::scan_cnt++;
       // if it is short, we will use normal block based scanning
       int d2F = c.r->disF(dx, dy, dx?ax: lb, dx?lb: ax);
-      if (d2F*(ub-lb+1) <= minarea) {
-        for (int i=lb; i<=ub; i++) {
-          _block_scan<dx, dy>(dx?ax: i, dx?i: ax);
-        }
+      if (d2F*(ub-lb+1) <= minstep) {
+        _interval_block_scan<dx, dy>(ax, lb, ub);
         continue;
       }
       // the coordinate of interval [lb, ub]
@@ -491,6 +481,13 @@ class rect_jump_point_locator
       if (lb <= ub) {
         _pushIntervalF<dx, dy>(intervals, c.r, nullptr, lb, ub);
       }
+    }
+  }
+
+  template<int dx, int dy>
+  inline void _interval_block_scan(int ax, int lb, int ub) {
+    for (int i=lb; i<=ub; i++) {
+      _block_scan<dx, dy>(dx?ax: i, dx?i: ax);
     }
   }
 
@@ -554,7 +551,7 @@ class rect_jump_point_locator
         case rdirect::L:
         case rdirect::R:
         {
-          if (cur_rect->disF(dx, dy, curx, cury) > minstep) {
+          if (cur_rect->disF(dx, dy, curx, cury) > (minstep<<1)) {
             bool res = _find_jpt(cur_rect, cure, curx, cury, dx, dy, jpid);
             if (res) {
               jpts_.push_back((uint32_t)jpid);

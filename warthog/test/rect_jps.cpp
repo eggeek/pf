@@ -19,7 +19,6 @@
 
 using namespace warthog::rectscan;
 using namespace std;
-string Testfile;
 bool Verbose = false;
 const vector<string> desc = {
   "NORTH", "SOUTH", "EAST", "WEST",
@@ -29,9 +28,9 @@ const vector<string> desc = {
 TEST_CASE("gen-rect") {
   vector<pair<string, string>> cases = {
     {"../maps/dao/arena.map", "./test/rects/arena.rect"},
-    {"../maps/rooms/64room_000.map", "./test/rects/64room.rect"},
     {"../maps/bgmaps/AR0042SR.map", "./test/rects/AR0042SR.rect"},
-    {"../maps/starcraft/CatwalkAlley.map", "../test/rects/CatwalkAlley.rect"}
+    {"../maps/starcraft/CatwalkAlley.map", "./test/rects/CatwalkAlley.rect"},
+    {"../maps/street/Boston_2_256.map", "./test/rects/Boston_2_256.rect"}
   };
   RectMap rectmap;
   for (auto& each: cases) {
@@ -43,114 +42,6 @@ TEST_CASE("gen-rect") {
     rectmap.print(out);
     cout << "#rects: " << rectmap.rects.size() << endl;
     out.close();
-  }
-}
-
-TEST_CASE("gen-rectid") {
-  vector<pair<string, string>> cases = {
-    {"../maps/dao/arena.map", "./test/rectid/arena.rectid"},
-    {"../maps/rooms/64room_000.map", "./test/rectid/64room.rectid"},
-    {"../maps/bgmaps/AR0042SR.map", "./test/rectid/AR0042SR.rectid"},
-    {"./data/arena_1.map", "./test/rectid/arena_1.rectid"},
-    {"./data/arena_2.map", "./test/rectid/arena_2.rectid"},
-    {"./data/arena_3.map", "./test/rectid/arena_3.rectid"},
-    {"./data/arena_4.map", "./test/rectid/arena_4.rectid"},
-    {"./data/arena_5.map", "./test/rectid/arena_5.rectid"},
-    {"./data/arena_6.map", "./test/rectid/arena_6.rectid"},
-    {"./data/arena_7.map", "./test/rectid/arena_7.rectid"},
-    {"./data/arena_8.map", "./test/rectid/arena_8.rectid"},
-    {"./data/64room_000_1.map", "./test/rectid/64room_000_1.rectid"},
-    {"./data/64room_000_2.map", "./test/rectid/64room_000_2.rectid"},
-    {"./data/64room_000_3.map", "./test/rectid/64room_000_3.rectid"},
-    {"./data/64room_000_4.map", "./test/rectid/64room_000_4.rectid"},
-    {"./data/64room_000_5.map", "./test/rectid/64room_000_5.rectid"},
-    {"./data/64room_000_6.map", "./test/rectid/64room_000_6.rectid"},
-    {"./data/64room_000_7.map", "./test/rectid/64room_000_7.rectid"},
-    {"./data/64room_000_8.map", "./test/rectid/64room_000_8.rectid"},
-    {"./data/GreenerPastures_1.map", "./test/rectid/GreenerPastures_1.rectid"},
-    {"./data/GreenerPastures_2.map", "./test/rectid/GreenerPastures_2.rectid"},
-    {"./data/GreenerPastures_3.map", "./test/rectid/GreenerPastures_3.rectid"},
-    {"./data/GreenerPastures_4.map", "./test/rectid/GreenerPastures_4.rectid"},
-    {"./data/GreenerPastures_5.map", "./test/rectid/GreenerPastures_5.rectid"},
-    {"./data/GreenerPastures_6.map", "./test/rectid/GreenerPastures_6.rectid"},
-    {"./data/GreenerPastures_7.map", "./test/rectid/GreenerPastures_7.rectid"},
-    {"./data/GreenerPastures_8.map", "./test/rectid/GreenerPastures_8.rectid"},
-    {"./data/CatwalkAlley_1.map", "./test/rectid/CatwalkAlley_1.rectid"},
-    {"./data/CatwalkAlley_2.map", "./test/rectid/CatwalkAlley_2.rectid"},
-    {"./data/CatwalkAlley_3.map", "./test/rectid/CatwalkAlley_3.rectid"},
-    {"./data/CatwalkAlley_4.map", "./test/rectid/CatwalkAlley_4.rectid"},
-    {"./data/CatwalkAlley_5.map", "./test/rectid/CatwalkAlley_5.rectid"},
-    {"./data/CatwalkAlley_6.map", "./test/rectid/CatwalkAlley_6.rectid"},
-    {"./data/CatwalkAlley_7.map", "./test/rectid/CatwalkAlley_7.rectid"},
-    {"./data/CatwalkAlley_8.map", "./test/rectid/CatwalkAlley_8.rectid"},
-  };
-  RectMap rectmap;
-  for (auto& each: cases) {
-    string mapfile = each.first;
-    string writeto = each.second;
-    rectmap.init(mapfile.c_str()); 
-    ofstream out;
-    out.open(writeto.c_str());
-    rectmap.print_idmap(out);
-    out.close();
-    cout << "#rects: " << rectmap.rects.size() << endl;
-    RectMap newmap(writeto.c_str());
-    // newmap.init(writeto.c_str());
-    REQUIRE(newmap == rectmap);
-    REQUIRE(newmap.equal(*(newmap.gmap)));
-  }
-}
-
-TEST_CASE("gen-distr") {
-  // generate statistic data of rectangles
-  vector<string> maps = {
-     "./test/rectid/arena_1.rectid",
-     "./test/rectid/arena_2.rectid",
-     "./test/rectid/arena_3.rectid",
-     "./test/rectid/arena_4.rectid",
-     "./test/rectid/arena_5.rectid",
-     "./test/rectid/arena_6.rectid",
-     "./test/rectid/arena_7.rectid",
-     "./test/rectid/arena_8.rectid",
-     "./test/rectid/64room_000_1.rectid",
-     "./test/rectid/64room_000_2.rectid",
-     "./test/rectid/64room_000_3.rectid",
-     "./test/rectid/64room_000_4.rectid",
-     "./test/rectid/64room_000_5.rectid",
-     "./test/rectid/64room_000_6.rectid",
-     "./test/rectid/64room_000_7.rectid",
-     "./test/rectid/64room_000_8.rectid",
-     "./test/rectid/GreenerPastures_1.rectid",
-     "./test/rectid/GreenerPastures_2.rectid",
-     "./test/rectid/GreenerPastures_3.rectid",
-     "./test/rectid/GreenerPastures_4.rectid",
-     "./test/rectid/GreenerPastures_5.rectid",
-     "./test/rectid/GreenerPastures_6.rectid",
-     "./test/rectid/GreenerPastures_7.rectid",
-     "./test/rectid/GreenerPastures_8.rectid",
-     "./test/rectid/CatwalkAlley_1.rectid",
-     "./test/rectid/CatwalkAlley_2.rectid",
-     "./test/rectid/CatwalkAlley_3.rectid",
-     "./test/rectid/CatwalkAlley_4.rectid",
-     "./test/rectid/CatwalkAlley_5.rectid",
-     "./test/rectid/CatwalkAlley_6.rectid",
-     "./test/rectid/CatwalkAlley_7.rectid",
-     "./test/rectid/CatwalkAlley_8.rectid",
-  };
-  RectMap rmap;
-  string headers = "map,mapw,maph,rnum,rid,rw,rh";
-  cout << headers << endl;
-  for (auto& m: maps) {
-    rmap.init(m.c_str());
-    for (auto& r: rmap.rects) {
-      cout << m << ","
-           << rmap.mapw << ","
-           << rmap.maph << ","
-           << rmap.rects.size() << ","
-           << r.rid << ","
-           << r.w << ","
-           << r.h << endl;
-    }
   }
 }
 
@@ -215,7 +106,8 @@ TEST_CASE("jump") {
     cout << "map: " << rectfile << endl;
     // check if it is end with .map
     RectMap rectmap(rectfile.c_str());
-    warthog::gridmap* gmap = new warthog::gridmap(rectfile.c_str());
+    warthog::gridmap* gmap = rectmap.gmap;
+    REQUIRE(rectmap.equal(*gmap));
     warthog::jps::online_jump_point_locator2* jpl2 = 
       new warthog::jps::online_jump_point_locator2(gmap);
     rect_jump_point_locator jpl = rect_jump_point_locator(&rectmap); 
@@ -244,7 +136,6 @@ TEST_CASE("jump") {
         cmp_jpts(jpts, jpts2, gmap, &rectmap);
       }
     }
-    delete gmap;
     delete jpl2;
   }
 }
@@ -275,6 +166,11 @@ TEST_CASE("speed-empty") {
     {4096, 4096, 256},
   };
   RectMap rmap;
+  string header = "len\tside\tmem\tloc\tconvert\tcalcLR\trect\tjps2\tspeed";
+  string header2 = "len\tside\tmem\trscan\tbscan\tscan_speed";
+  vector<vector<int>> mapsize;
+  vector<pair<double, double>> scancosts;
+  cout << header << endl;
   for (auto& c: cases) {
     int maph = c[0], mapw = c[1], s = c[2];
     idmaps.resize(maph * mapw);
@@ -286,33 +182,93 @@ TEST_CASE("speed-empty") {
     rmap.init(maph, mapw, idmaps);
     REQUIRE((int)rmap.rects.size() == (maph*mapw) / (s*s));
     rect_jump_point_locator jpl = rect_jump_point_locator(&rmap); 
+    // jpl.set_minarea(0);
+    jpl.set_minstep(0);
 
     warthog::gridmap* gmap = rmap.gmap;
     warthog::jps::online_jump_point_locator2* jpl2 = 
       new warthog::jps::online_jump_point_locator2(gmap);
 
     REQUIRE(rmap.equal(*gmap));
-    warthog::timer t;
-    long long cost_rect, cost_jp2;
-    int sx = 0, sy = 0, tx = mapw-1, ty = maph-1;
-    uint32_t unpad_sid = rmap.to_id(sx, sy), unpad_tid = rmap.to_id(tx, ty);
-    uint32_t pad_sid = gmap->to_padded_id(unpad_sid), pad_tid = gmap->to_padded_id(unpad_tid);
-    vector<uint32_t> jpts; 
-    vector<warthog::cost_t> cost;
+    for (int rep=0; rep<1; rep++) {
+      warthog::timer t;
+      long long cost_rect, cost_jp2, cost_loc, cost_convert, cost_scanLR;
+      double rscan_cost, bscan_cost;
+      int sx = 0, sy = 0, tx = mapw-1, ty = maph-1, id;
+      uint32_t unpad_sid = rmap.to_id(sx, sy), unpad_tid = rmap.to_id(tx, ty);
+      uint32_t pad_sid = gmap->to_padded_id(unpad_sid), pad_tid = gmap->to_padded_id(unpad_tid);
+      vector<uint32_t> jpts; 
+      vector<warthog::cost_t> cost;
 
-    t.start();
-    jpl2->jump(warthog::jps::direction::SOUTHEAST, pad_sid, pad_tid, jpts, cost);
-    t.stop();
-    cost_jp2 = t.elapsed_time_nano();
+      t.start();
+      jpl2->jump(warthog::jps::direction::SOUTHEAST, pad_sid, pad_tid, jpts, cost);
+      t.stop();
+      cost_jp2 = t.elapsed_time_nano();
+      bscan_cost = (double)cost_jp2 / (maph*mapw/32);
 
-    t.start();
-    jpl.jump(warthog::jps::direction::SOUTHEAST, unpad_sid, unpad_tid, rmap.get_rect(rmap.idmap[sy*rmap.mapw+sx]));
-    t.stop();
-    cost_rect = t.elapsed_time_nano();
+      t.start();
+      jpl.jump(warthog::jps::direction::SOUTHEAST, unpad_sid, unpad_tid, rmap.get_rect(rmap.idmap[sy*rmap.mapw+sx]));
+      t.stop();
+      cost_rect = t.elapsed_time_nano();
+      rscan_cost = (double)cost_rect / (mapw*maph/(s*s));
 
-    cout << "h,w: " << maph << ", side: " << s 
-         << ", cost rect: " << cost_rect << ", cost jp2: " << cost_jp2 << ", speed: " << (double)cost_jp2 / (double)cost_rect << endl;
+      srand(0);
+      vector<int> xs, ys;
+      for (int x=0; x<mapw; x++) xs.push_back(x);
+      for (int y=0; y<maph; y++) ys.push_back(y);
+      random_shuffle(xs.begin(), xs.end());
+      random_shuffle(ys.begin(), ys.end());
+      t.start();
+      for (int x: xs)
+      for (int y: ys) {
+        rmap.get_rect(x, y);
+      }
+      t.stop();
+      cost_loc = t.elapsed_time_nano();
+
+      t.start();
+      for (int x: xs)
+      for (int y: ys) {
+        id = gmap->to_padded_id(y*mapw+x);
+      }
+      t.stop();
+      cost_convert = t.elapsed_time_nano();
+
+      t.start();
+      for (int i=0; i<4; i++)
+      for (int x: xs)
+      for (int y: ys) {
+        Rect* r = rmap.get_rect(y*rmap.mapw+x);
+        int dx = warthog::dx[i], dy = warthog::dy[i];
+        r->disLR(rdirect::L, dx, dy, x, y);
+        r->disLR(rdirect::R, dx, dy, x, y);
+        r->disF(dx, dy, x, y);
+      }
+      t.stop();
+      cost_scanLR = t.elapsed_time_nano();
+
+      cout << maph << "\t"
+           << s << "\t"
+           << (rmap.rects.size() * sizeof(Rect)>>10) << "Kb\t" 
+           << cost_loc << "\t" << cost_convert << "\t" << cost_scanLR << "\t"
+           << cost_rect << "\t" << cost_jp2 << "\t" 
+           << (double)cost_jp2 / (double)cost_rect << endl;
+      scancosts.push_back({rscan_cost, bscan_cost});
+      mapsize.push_back({maph,s,(int)(rmap.rects.size() * sizeof(Rect)>>10)});
+    }
     delete jpl2;
+  }
+
+  cout << "\n" << header2 << endl;
+  for (int i=0; i<(int)scancosts.size(); i++) {
+    int len = mapsize[i][0];
+    int s   = mapsize[i][1];
+    int mem = mapsize[i][2];
+    double rscan_cost = scancosts[i].first;
+    double bscan_cost = scancosts[i].second;
+    cout << len << "\t" << s << "\t" << mem << "\t"
+         << rscan_cost << "\t" << bscan_cost << "\t"
+         << bscan_cost / rscan_cost << endl;
   }
 }
 
@@ -341,7 +297,7 @@ TEST_CASE("intervalScan") {
         int dx = warthog::dx[d];
         int dy = warthog::dy[d];
         int lb=0, ub=0, ax;
-        eposition cure = r2e.at({dx, dy, rdirect::B});
+        eposition cure = R2E(dx, dy, rdirect::B);
         it.get_range(cure, lb, ub);
         ax = it.axis(cure);
         jpts2.clear(); costs2.clear();
@@ -353,7 +309,20 @@ TEST_CASE("intervalScan") {
         }
 
         jpl.get_jpts().clear(); jpl.get_costs().clear();
-        jpl.scanInterval(lb, ub, &(it), dx, dy);
+        switch (d) {
+          case 0:
+            jpl.scanInterval<0, -1>(lb, ub, &(it));
+            break;
+          case 1:
+            jpl.scanInterval<0, 1>(lb, ub, &(it));
+            break;
+          case 2:
+            jpl.scanInterval<1, 0>(lb, ub, &(it));
+            break;
+          default:
+            jpl.scanInterval<-1, 0>(lb, ub, &(it));
+            break;
+        };
         jpts = jpl.get_jpts();
         cmp_jpts(jpts, jpts2, gmap, &rectmap);
       }
@@ -415,10 +384,7 @@ TEST_CASE("query") {
 int main(int argv, char* args[]) {
   using namespace Catch::clara;
   Catch::Session session;
-  auto cli = 
-      Opt(Testfile, "testfile")["--input"]("")
-    | Opt( Verbose )["-v"]["--verbose"]("verbose")
-    | session.cli();
+  auto cli = Opt( Verbose )["-v"]["--verbose"]("verbose") | session.cli();
   session.cli(cli);
   int resCode = session.applyCommandLine(argv, args);
   if (resCode != 0)

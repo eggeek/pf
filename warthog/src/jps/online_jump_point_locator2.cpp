@@ -4,6 +4,7 @@
 
 #include <cassert>
 #include <climits>
+#include <bitset>
 
 warthog::jps::online_jump_point_locator2::online_jump_point_locator2(
         warthog::gridmap* map) : map_(map)//, jumplimit_(UINT32_MAX)
@@ -41,6 +42,108 @@ warthog::jps::online_jump_point_locator2::create_rmap()
 		}
 	}
 	return rmap;
+}
+
+int warthog::jps::online_jump_point_locator2::tilecnt(warthog::jps::direction d, uint32_t node_id) {
+  uint32_t tx, ty;
+  int dx, dy, cnt = 1;
+  d2v(d, dx, dy);
+  map_->to_unpadded_xy(node_id, tx, ty);
+  while (0<=(tx+dx)&&(tx+dx)<map_->header_width() &&
+         0<=(ty+dy)&&(ty+dy)<map_->header_height() &&
+         map_->get_label(map_->to_padded_id(tx+dx, ty+dy)) ==
+         map_->get_label(node_id)) {
+    cnt++;
+    tx += dx;
+    ty += dy;
+  }
+  return cnt;
+}
+
+int warthog::jps::online_jump_point_locator2::naive_rayscan(warthog::jps::direction d, uint32_t node_id) {
+  int res = 0;
+  int dx, dy;
+  warthog::jps::d2v(d, dx, dy);
+  while (true) {
+    uint32_t nxtv = node_id + dx;
+    uint32_t nxth = node_id + dy * (int)map_->width();
+    uint32_t nxt  = node_id + dx + dy * (int)map_->width();
+    if (map_->get_label(nxtv) &&
+        map_->get_label(nxth) &&
+        map_->get_label(nxt)) {
+      res ++;
+      node_id = nxt;
+    }
+    else break;
+  }
+  return res;
+}
+
+int warthog::jps::online_jump_point_locator2::_block_rayscan_east(
+    gridmap* gmap, uint32_t node_id) {
+  // gmap->print(std::cout);
+  uint32_t neis[3] = {0, 0, 0};
+  int res = 0;
+  while (true) {
+    gmap->get_neighbours_32bit(node_id, neis);
+
+    uint32_t x, y;
+    gmap->to_padded_xy(node_id, x, y);
+    // std::cout << "x: " << x << ", y: " << y << std::endl;
+    // for (int i=0; i<3; i++) {
+    //   std::bitset<32> b(neis[i]);
+    //   std::cout << b << std::endl;
+    // }
+    if (~neis[1]) {
+      uint32_t nstep = (uint32_t)__builtin_ffs(~neis[1])-1;
+      res += nstep-1;
+      break;
+    }
+    node_id += 31;
+    res += 31;
+  }
+  return res;
+}
+
+int warthog::jps::online_jump_point_locator2::_block_rayscan_west(
+    gridmap* gmap, uint32_t node_id) {
+  uint32_t neis[3] = {0, 0, 0};
+  // gmap->print(std::cout);
+  int res = 0;
+  while (true) {
+    gmap->get_neighbours_upper_32bit(node_id, neis);
+    if (~neis[1]) {
+      uint32_t nstep = (uint32_t)__builtin_clz(~neis[1]);
+      res += nstep-1;
+      break;
+    }
+    node_id -= 31;
+    res += 31;
+  }
+  return res;
+}
+
+
+int warthog::jps::online_jump_point_locator2::rayscan(warthog::jps::direction d, uint32_t node_id) {
+  int res;
+  switch(d) {
+    case warthog::jps::NORTH:
+      res = _block_rayscan_east(rmap_, map_id_to_rmap_id(node_id));
+      break;
+    case warthog::jps::SOUTH:
+      res = _block_rayscan_west(rmap_, map_id_to_rmap_id(node_id));
+      break;
+    case warthog::jps::WEST:
+      res = _block_rayscan_west(map_, node_id);
+      break;
+    case warthog::jps::EAST:
+      res = _block_rayscan_east(map_, node_id);
+      break;
+    default:
+      res = naive_rayscan(d, node_id);
+      break;
+  }
+  return res;
 }
 
 

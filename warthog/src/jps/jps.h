@@ -94,6 +94,30 @@ inline direction v2d(const int& dx, const int& dy) {
   };
 }
 
+inline void d2v(const direction& d, int& dx, int& dy) {
+  switch(d) {
+    case NORTH:
+      dx = 0, dy = -1; break;
+    case SOUTH:
+      dx = 0, dy = 1; break;
+    case EAST:
+      dx = 1, dy = 0; break;
+    case WEST:
+      dx = -1, dy = 0; break;
+    case NORTHEAST:
+      dx = 1, dy = -1; break;
+    case NORTHWEST:
+      dx = -1, dy = -1; break;
+    case SOUTHEAST:
+      dx = 1, dy = 1; break;
+    case SOUTHWEST:
+      dx = -1, dy = 1; break;
+    default:
+      dx = 0, dy = 0;
+      break;
+  }
+}
+
 inline warthog::jps::direction
 compute_direction_4c(uint32_t n1_xy_id, uint32_t n2_xy_id, uint32_t mapwidth)
 {

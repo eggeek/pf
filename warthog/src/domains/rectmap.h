@@ -172,7 +172,7 @@ inline rdirect E2R(const int& dx, const int& dy, const eposition& ep) {
       assert(false);
       return rdirect::F;
   }
-};
+}
 
 // given move direction, return the edge id in the relative direction
 // const map<tuple<int, int, eposition>, rdirect> e2r = {
@@ -206,6 +206,14 @@ class Rect {
   vector<int> adj[4];   // adj rects ids of edge i, in top-down-left-right (increase) order
   vector<int> jptf[4];  // jump points in "forward" direction (top-down, left-right)
   vector<int> jptr[4];  // jump points in "reverse" direction (down-top, right-left)
+
+  ~Rect() {
+    for (int i=0; i<4; i++) {
+      adj[i].clear();
+      jptf[i].clear();
+      jptr[i].clear();
+    }
+  }
 
   inline eposition pos(const int& px, const int& py) const {
     if (py == y) return eposition::N;
@@ -241,6 +249,12 @@ class Rect {
         assert(false);
         return -1;
     }
+  }
+
+  // the max number of step in diagonal move in the rect
+  template<int dx, int dy>
+  inline int diagD(int curx, int cury) {
+    return min(disF(0, dy, curx, cury), disF(dx, 0, curx, cury));
   }
 
   // distance to border F
@@ -321,8 +335,7 @@ class RectMap {
   };
   RectMap(const char* mapfile, bool quadtree=false);
   ~RectMap() {
-    rects.clear();
-    rects.shrink_to_fit();
+    // rects.shrink_to_fit();
     if (gmap != nullptr)
       delete gmap;
   }
