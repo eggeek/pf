@@ -44,8 +44,15 @@ class online_jump_point_locator2
 
     // number of step can move in direction d before reach deadend
     int rayscan(warthog::jps::direction d, uint32_t node_id);
+    int rayscan(warthog::jps::direction d, int x, int y) { return rayscan(d, map_->to_padded_id(x, y)); }
     // number of tiles int direction d, that with same traversability of current
     int tilecnt(warthog::jps::direction d, uint32_t node_id);
+    void set_label(int x, int y, bool flag) {
+      uint32_t id = map_->to_padded_id(x, y);
+      map_->set_label(id, flag);
+      rmap_->set_label(map_id_to_rmap_id(id), false);
+    }
+    int get_label(int x, int y) { return map_->get_label(map_->to_padded_id(x, y)); }
 
 		size_t 
 		mem()
