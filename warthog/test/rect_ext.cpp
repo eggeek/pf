@@ -7,14 +7,22 @@
 #include "catch.hpp"
 #include "rectmap.h"
 #include "constants.h"
+#include "jps2_expansion_policy.h"
+#include "flexible_astar.h"
+#include "octile_heuristic.h"
 #include "rect_jump_point_locator.h"
+#include "convrect_jump_point_locator.h"
 #include "grid2convex_rect.h"
+#include "convex_rectmap.h"
 
-using namespace warthog::rectscan;
 using namespace warthog::jps;
 using namespace std;
 namespace cr = convrectgen;
+namespace cv = warthog::convrectscan;
+namespace rs = warthog::rectscan;
 typedef cr::Point Point;
+typedef rs::Rect Rect;
+typedef rs::RectMap RectMap;
 string infile, outfile;
 bool verbose = false;
 const vector<string> desc = {
@@ -23,14 +31,15 @@ const vector<string> desc = {
 };
 
 struct Visual {
-  int x, y, h, w;
+  int x, y, h, w, size;
   int mapw, maph;
   int traversable;
   string map;
-  const string header = "map,maph,mapw,x,y,h,w,traversable";
+  const string header = "map,maph,mapw,x,y,h,w,size,traversable";
 
-  Visual(int xl, int yl, int xu, int yu, int mw, int mh, string mapfile, int label) {
+  Visual(int xl, int yl, int xu, int yu, int _size, int mw, int mh, string mapfile, int label) {
     x = xl, y = yl, h = yu-yl+1, w = xu-xl+1;
+    size = _size;
     mapw = mw, maph = mh;
     map = mapfile;
     traversable = label;
@@ -40,9 +49,31 @@ struct Visual {
   string to_str() {
     return map + "," + to_string(maph) + "," + to_string(mapw) + "," 
           + to_string(x) + "," + to_string(y) + "," + to_string(h) + "," + to_string(w) + ","
-          + to_string(traversable);
+          + to_string(size) + "," + to_string(traversable);
   }
 };
+
+int get_convex_size(vector<int>& idmap, int rid, int sx, int sy, int mapw, int maph) {
+  int res = 0;
+  set<Point> vis;
+  queue<Point> q;
+  q.push({sx, sy});
+  vis.insert({sx, sy});
+  while (!q.empty()) {
+    Point c = q.front(); q.pop();
+    res++;
+    for (int i=0; i<4; i++) {
+      Point nxt = {c.x+warthog::dx[i], c.y+warthog::dy[i]};
+      if (0<=nxt.x&&nxt.x<mapw && 0<=nxt.y&&nxt.y<maph) {
+        if (idmap[nxt.y*mapw+nxt.x] == rid && vis.find(nxt) == vis.end()) {
+          vis.insert(nxt);
+          q.push(nxt);
+        }
+      }
+    }
+  }
+  return res;
+}
 
 TEST_CASE("rayscan") {
   vector<string> maps = {
@@ -189,7 +220,7 @@ bool cmp(const Rect& a, const Rect& b) {
 
 void run_ext_rect(string rfile, vector<Visual>& vis) {
   RectMap rmap(rfile.c_str());
-  rect_jump_point_locator rjpl(&rmap);
+  rs::rect_jump_point_locator rjpl(&rmap);
   online_jump_point_locator2* jpl = rjpl.get_jpl();
 
   // init rectangle list
@@ -204,7 +235,7 @@ void run_ext_rect(string rfile, vector<Visual>& vis) {
   for (int x=0; x<rmap.mapw; x++)
   if (!jpl->get_label(x, y)) {
     idmap[y*rmap.mapw+x] = -1;
-    vis.push_back(Visual(x, y, x, y, rmap.mapw, rmap.maph, rfile, 0));
+    vis.push_back(Visual(x, y, x, y, 1, rmap.mapw, rmap.maph, rfile, 0));
   }
 
   for (int i=0; i<(int)rmap.rects.size() && i<=20; i++) {
@@ -230,7 +261,8 @@ void run_ext_rect(string rfile, vector<Visual>& vis) {
         cr::print_rect_map(xl, yl, xu, yu, i+1, idmap, jpl->get_map());
       }
     }
-    vis.push_back(Visual(xl, yl, xu, yu, rmap.mapw, rmap.maph, rfile, 1));
+    int size = get_convex_size(idmap, r.rid, r.x, r.y, rmap.mapw, rmap.maph);
+    vis.push_back(Visual(xl, yl, xu, yu, size, rmap.mapw, rmap.maph, rfile, 1));
   }
 }
 
@@ -301,12 +333,13 @@ void gen_ext_rect(string mapfile, vector<Visual>& vis) {
 
   for (auto& r: cr::finals) {
     REQUIRE(is_convex(r.xl, r.yl, r.xu, r.yu, r.sx, r.sy, r.rid, idmap, jpl));
-    vis.push_back(Visual(r.xl, r.yl, r.xu, r.yu, mapw, maph, mapfile, 1));
+    int size = get_convex_size(idmap, r.rid, r.sx, r.sy, mapw, maph);
+    vis.push_back(Visual(r.xl, r.yl, r.xu, r.yu, size, mapw, maph, mapfile, 1));
   }
   for (int y=0; y<(int)gmap->header_height(); y++)
   for (int x=0; x<(int)gmap->header_width(); x++)
   if (idmap[y*mapw+x]==-1) {
-    vis.push_back(Visual(x, y, x, y, mapw, maph, mapfile, 0));
+    vis.push_back(Visual(x, y, x, y, 1, mapw, maph, mapfile, 0));
   }
 }
 
@@ -346,6 +379,38 @@ void gen_rectid(string mapfile, string writeto) {
   }
 }
 
+void gen_convrectid(string mapfile, string writeto) {
+  cv::ConvRectMap crmap(mapfile.c_str());
+  if (!writeto.empty()) {
+    ofstream out;
+    out.open(writeto.c_str());
+    crmap.print_idmap(out);
+    out.close();
+    cv::ConvRectMap newmap(writeto.c_str());
+    REQUIRE(newmap == crmap);
+    REQUIRE(newmap.equal(*(newmap.gmap)));
+  }
+  else {
+    crmap.print_idmap(cout);
+  }
+}
+
+void gen_convrect(string mapfile, string writeto) {
+  cv::ConvRectMap crmap(mapfile.c_str());
+  if (!writeto.empty()) {
+    ofstream out;
+    out.open(writeto.c_str());
+    crmap.print(out);
+    out.close();
+    cv::ConvRectMap newmap(writeto.c_str());
+    REQUIRE(newmap == crmap);
+    REQUIRE(newmap.equal(*(newmap.gmap)));
+  }
+  else {
+    crmap.print(cout);
+  }
+}
+
 TEST_CASE("gen-rectid") {
   vector<pair<string, string>> cases = {
     {"../maps/dao/arena.map", "./test/rectid/arena.rectid"},
@@ -361,6 +426,48 @@ TEST_CASE("gen-rectid") {
     }
   } else {
     gen_rectid(infile, outfile);
+  }
+}
+
+TEST_CASE("gen-convrectid") {
+  vector<pair<string, string>> cases = {
+    {"../maps/dao/arena.map", "./test/rectid/arena.convrectid"},
+    {"../maps/dao/isound1.map", "./test/rectid/isound1.convrectid"},
+    {"../maps/dao/lak101d.map", "./test/rectid/lak101d.convrectid"},
+    {"../maps/dao/lak105d.map", "./test/rectid/lak105d.convrectid"},
+    {"../maps/dao/lak107d.map", "./test/rectid/lak107d.convrectid"},
+    {"../maps/dao/lak108d.map", "./test/rectid/lak108d.convrectid"},
+  };
+  if (infile.empty()) {
+    for (auto& each: cases) {
+      string mapfile = each.first;
+      string writeto = each.second;
+      cerr << "Running on " << mapfile << endl;
+      gen_convrectid(mapfile, writeto);
+    }
+  } else {
+    gen_convrectid(infile, outfile);
+  }
+}
+
+TEST_CASE("gen-convrect") {
+  vector<pair<string, string>> cases = {
+    {"../maps/dao/arena.map", "./test/rects/arena.convrect"},
+    {"../maps/dao/isound1.map", "./test/rects/isound1.convrect"},
+    {"../maps/dao/lak101d.map", "./test/rects/lak101d.convrect"},
+    {"../maps/dao/lak105d.map", "./test/rects/lak105d.convrect"},
+    {"../maps/dao/lak107d.map", "./test/rects/lak107d.convrect"},
+    {"../maps/dao/lak108d.map", "./test/rects/lak108d.convrect"},
+  };
+  if (infile.empty()) {
+    for (auto& each: cases) {
+      string mapfile = each.first;
+      string writeto = each.second;
+      cerr << "Running on " << mapfile << endl;
+      gen_convrect(mapfile, writeto);
+    }
+  } else {
+    gen_convrect(infile, outfile);
   }
 }
 
@@ -439,6 +546,74 @@ TEST_CASE("gen-distr") {
            << r.w << ","
            << r.h << endl;
     }
+  }
+}
+
+void test_internalJump(string mfile) {
+  cv::ConvRectMap convmap(mfile);
+  rs::convrect_jump_point_locator* cjpl = new rs::convrect_jump_point_locator(&convmap);
+
+  warthog::jps2_expansion_policy expander(convmap.gmap);
+  warthog::octile_heuristic heur(convmap.mapw, convmap.maph);
+  warthog::pqueue_min open;
+  warthog::flexible_astar<
+    warthog::octile_heuristic,
+    warthog::jps2_expansion_policy,
+    warthog::pqueue_min> jps2(&heur, &expander, &open);
+
+  const double EPS = 1e-3;
+
+  for (cv::ConvRect& r: convmap.rects) {
+    vector<Point> nodes;
+    for (int y=r.yl(); y<=r.yu(); y++)
+    for (int x=r.xl(); x<=r.xu(); x++) 
+    if (convmap.idmap[y*convmap.mapw+x]==r.rid) {
+      nodes.push_back({x, y});
+    }
+    // compute path from u to v
+    for (Point u: nodes)
+    for (Point v: nodes) if (u != v) {
+      int delx = v.x - u.x, dely = v.y - u.y;
+      int cid = u.y*convmap.mapw+u.x;
+      int gid = v.y*convmap.mapw+v.x;
+      double plen = warthog::INF32;
+      for (int i=0; i<8; i++) {
+        int vx = warthog::dx[i]*delx;
+        int vy = warthog::dy[i]*dely;
+        if (vx>=0 && vy>=0) {
+          direction d = v2d(warthog::dx[i], warthog::dy[i]);
+          cerr << "s( " << u.x << ", " << u.y << " ) "
+               << "t( " << v.x << ", " << v.y << " ) "
+               << "dir: " << desc[i] << endl;
+          cjpl->reset();
+          cjpl->jump(d, cid, gid, &r);
+          if (cjpl->get_jpts().size() && (int)cjpl->get_jpts().back()==gid) {
+            // path length must be exactly same if reach target via another starting direction
+            if (plen != warthog::INF32)
+              REQUIRE(plen == cjpl->get_costs().back());
+            plen = cjpl->get_costs().back();
+          }
+        }
+      }
+      warthog::problem_instance pi(cid, gid, verbose);
+      warthog::solution sol;
+      jps2.get_path(pi, sol);
+      REQUIRE(plen - sol.sum_of_edge_costs_ < EPS);
+    }
+  }
+  delete cjpl;
+}
+
+TEST_CASE("internalJump") {
+  vector<string> cases = {
+    // "./test/rects/stairNE.convrect",
+    // "./test/rects/stairSW.convrect",
+    // "./test/rects/cross1.convrect",
+    "./test/rects/arena.convrect",
+  };
+  for (string f: cases) {
+    cerr << "Running map: " << f << endl;
+    test_internalJump(f);
   }
 }
 

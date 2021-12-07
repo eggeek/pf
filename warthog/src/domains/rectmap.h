@@ -207,13 +207,13 @@ class Rect {
   vector<int> jptf[4];  // jump points in "forward" direction (top-down, left-right)
   vector<int> jptr[4];  // jump points in "reverse" direction (down-top, right-left)
 
-  ~Rect() {
-    for (int i=0; i<4; i++) {
-      adj[i].clear();
-      jptf[i].clear();
-      jptr[i].clear();
-    }
-  }
+  // ~Rect() {
+  //   for (int i=0; i<4; i++) {
+  //     adj[i].clear();
+  //     jptf[i].clear();
+  //     jptr[i].clear();
+  //   }
+  // }
 
   inline eposition pos(const int& px, const int& py) const {
     if (py == y) return eposition::N;
@@ -396,6 +396,11 @@ class RectMap {
     if (gmap->get_label(px-1, py)) res ^= 2;
     if (gmap->get_label(px+1, py)) res ^= 1;
     return res;
+  }
+
+  inline int get_label(const int x, const int y) {
+    int padid = gmap->to_padded_id(x, y);
+    return gmap->get_label(padid);
   }
 
   inline int get_label(const int id) {

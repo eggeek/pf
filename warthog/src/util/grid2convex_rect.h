@@ -15,15 +15,15 @@ using namespace std;
 using namespace warthog;
 using namespace warthog::jps;
 
-vector<int> _idmap;
-int mapw, maph, cntr;
-bool verbose = false;
+extern vector<int> _idmap;
+extern int mapw, maph, cntr;
+extern bool verbose;
 
-void init(int w, int h, bool v) {
+inline void init(int w, int h, bool v) {
   mapw = w, maph = h, verbose = v;
 }
 
-long long get_heuristic(int width, int height)
+inline long long get_heuristic(int width, int height)
 {
     long long out = min(width, height);
     out *= width;
@@ -36,6 +36,12 @@ struct Point {
   bool operator<(const Point& rhs) const {
     if (rhs.x == x) return y<rhs.y;
     return x<rhs.x;
+  }
+  bool operator==(const Point& rhs) const {
+    return rhs.x == x && rhs.y == y;
+  }
+  bool operator!=(const Point& rhs) const {
+    return !(*this == rhs);
   }
 };
 
@@ -80,7 +86,7 @@ struct FinalConvexRect {
   }
   FinalConvexRect(int x, int y, int h, int w, int _rid) {
     xl = x-w+1, xu = x,
-    yl = y-h+1, xu = y;
+    yl = y-h+1, yu = y;
     sx = x, sy = y;
     lb[0] = lb[2] = xl;
     lb[1] = lb[3] = yl;
@@ -88,11 +94,24 @@ struct FinalConvexRect {
     ub[1] = ub[3] = yu;
     rid = _rid;
   }
+  void calc_bound(vector<int>& idmap, int mapw) {
+    lb[0] = lb[2] = xl, lb[1] = lb[3] = yl;
+    ub[0] = ub[2] = xu, ub[1] = ub[3] = yu;
+    while (lb[0]<=ub[0] && idmap[yl*mapw+lb[0]] != rid) lb[0]++;
+    while (lb[1]<=ub[1] && idmap[lb[1]*mapw+xu] != rid) lb[1]++;
+    while (lb[2]<=ub[2] && idmap[yu*mapw+lb[2]] != rid) lb[2]++;
+    while (lb[3]<=ub[3] && idmap[lb[3]*mapw+xl] != rid) lb[3]++;
+
+    while (ub[0]>=lb[0] && idmap[yl*mapw+ub[0]] != rid) ub[0]--;
+    while (ub[1]>=lb[1] && idmap[ub[1]*mapw+xu] != rid) ub[1]--;
+    while (ub[2]>=lb[2] && idmap[yu*mapw+ub[2]] != rid) ub[2]--;
+    while (ub[3]>=lb[3] && idmap[ub[3]*mapw+xl] != rid) ub[3]--;
+  }
 };
 
-vector<FinalConvexRect> finals;
+extern vector<FinalConvexRect> finals;
 
-void print_cell(int x, int y, vector<int>& idmap, warthog::gridmap* gmap, string cs) {
+inline void print_cell(int x, int y, vector<int>& idmap, warthog::gridmap* gmap, string cs) {
   if (x<0 || x>=(int)gmap->header_width() || y<0 || y>=(int)gmap->header_height()) {
     printf("%c", cs[1]);
     return;
@@ -107,7 +126,7 @@ void print_cell(int x, int y, vector<int>& idmap, warthog::gridmap* gmap, string
   }
 }
 
-void print_rect_map(int xl, int yl, int xu, int yu, int rid, vector<int>& idmap, warthog::gridmap* gmap) {
+inline void print_rect_map(int xl, int yl, int xu, int yu, int rid, vector<int>& idmap, warthog::gridmap* gmap) {
   int pad = 2;
   printf("xl: %d yl: %d xu: %d yu: %d rid: %d pad: %d\n", xl, yl, xu, yu, rid, pad);
   // print above pad row
@@ -172,7 +191,7 @@ void print_rect_map(int xl, int yl, int xu, int yu, int rid, vector<int>& idmap,
   }
 }
 
-int expand_border_x(int x, int yl, int yu, int& bL, int& bU, int rid,
+inline int expand_border_x(int x, int yl, int yu, int& bL, int& bU, int rid,
     direction d, vector<int>& idmap, online_jump_point_locator2* jpl) {
   int i=bL, j=bU;
   int dx, dy;
@@ -226,7 +245,7 @@ int expand_border_x(int x, int yl, int yu, int& bL, int& bU, int rid,
   return 1;
 }
 
-int expand_border_y(int y, int xl, int xu, int& bL, int& bU, int rid,
+inline int expand_border_y(int y, int xl, int xu, int& bL, int& bU, int rid,
     direction d, vector<int>& idmap, online_jump_point_locator2* jpl) {
   int i=bL, j=bU;
   int dx, dy;
@@ -278,7 +297,7 @@ int expand_border_y(int y, int xl, int xu, int& bL, int& bU, int rid,
   return 1;
 }
 
-int check_border_x(int xl, int yl, int xu, int yu, Point pa, Point pb, int dx, int dy, int rid, int mapw, vector<int>& idmap) {
+inline int check_border_x(int xl, int yl, int xu, int yu, Point pa, Point pb, int dx, int dy, int rid, int mapw, vector<int>& idmap) {
   // check border from in dx direction
   // return the last non-decreasing position
   int curx = pa.x, cury = pa.y;
@@ -309,7 +328,7 @@ int check_border_x(int xl, int yl, int xu, int yu, Point pa, Point pb, int dx, i
   return curx;
 }
 
-int check_border_y(int xl, int yl, int xu, int yu, Point pa, Point pb, int dx, int dy, int rid, int mapw, vector<int>& idmap) {
+inline int check_border_y(int xl, int yl, int xu, int yu, Point pa, Point pb, int dx, int dy, int rid, int mapw, vector<int>& idmap) {
   // similar to check_border_x
   int cury = pa.y, curx = pa.x;
   while (cury != pb.y+dy) {
@@ -331,7 +350,7 @@ int check_border_y(int xl, int yl, int xu, int yu, Point pa, Point pb, int dx, i
   return cury;
 }
 
-bool try_expand_naive(int xl, int yl, int xu, int yu, int sx, int sy, 
+inline bool try_expand_naive(int xl, int yl, int xu, int yu, int sx, int sy, 
     int rid, set<Point>& newp, 
     vector<int>& idmap, online_jump_point_locator2* jpl) {
   queue<Point> q;
@@ -403,7 +422,7 @@ bool try_expand_naive(int xl, int yl, int xu, int yu, int sx, int sy,
   return true;
 }
 
-bool expand_rect_naive(int& xl, int& yl, int& xu, int& yu, int rid,
+inline bool expand_rect_naive(int& xl, int& yl, int& xu, int& yu, int rid,
    int lb[4], int ub[4], vector<int>& idmap, online_jump_point_locator2* jpl) {
   /*
    * precondition: [xl, yl, xu, yu] is a purely empty rectangle
@@ -493,7 +512,7 @@ bool expand_rect_naive(int& xl, int& yl, int& xu, int& yu, int rid,
   return res;
 }
 
-bool expand_rect(int& xl, int& yl, int& xu, int& yu, int rid,
+inline bool expand_rect(int& xl, int& yl, int& xu, int& yu, int rid,
     int lb[4], int ub[4], vector<int>& idmap, online_jump_point_locator2* jpl) {
 
   /*      
@@ -588,7 +607,7 @@ bool expand_rect(int& xl, int& yl, int& xu, int& yu, int rid,
   return res;
 }
 
-SearchNode get_best_rect(SearchNode cur, vector<int>& idmap, online_jump_point_locator2* jpl) {
+inline SearchNode get_best_rect(SearchNode cur, vector<int>& idmap, online_jump_point_locator2* jpl) {
   SearchNode res = {0, 0, 0, 0};
   // (x, y) is -1 or marked
   if (idmap[cur.y*mapw+cur.x] != 0) return res;
@@ -611,7 +630,7 @@ SearchNode get_best_rect(SearchNode cur, vector<int>& idmap, online_jump_point_l
 }
 
 
-void make_rectangles(online_jump_point_locator2* jpl, vector<int>& idmap)
+inline void make_rectangles(online_jump_point_locator2* jpl, vector<int>& idmap)
 {
   priority_queue<SearchNode> pq;
   gridmap* gmap = jpl->get_map();
