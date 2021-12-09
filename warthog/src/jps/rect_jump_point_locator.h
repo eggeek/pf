@@ -494,13 +494,10 @@ class rect_jump_point_locator
   template<int dx, int dy>
   void _scan(int node_id, Rect* cur_rect) {
 
-    rdirect curp;
-    eposition cure;
     int curx, cury;
     map_->to_xy(node_id, curx, cury);
-    cure = cur_rect->pos(curx, cury);
 
-    int jpid, d2F;
+    int jpid, d2F, rid;
     bool onL = false, onR = false;
 
     d2F = cur_rect->disF(dx, dy, curx, cury);
@@ -509,11 +506,7 @@ class rect_jump_point_locator
       return;
     }
 
-    onL = cur_rect->disLR(rdirect::L, dx, dy, curx, cury) == 0;
-    onR = cur_rect->disLR(rdirect::R, dx, dy, curx, cury) == 0;
-
     auto move_fwd = [&]() {
-      cure = R2E(dx, dy, rdirect::F);
       d2F = cur_rect->disF(dx, dy, curx, cury);
       switch (dx) {
         case 0:
@@ -526,17 +519,15 @@ class rect_jump_point_locator
     };
     
     // inside, then move to the forward edge
-    if (cure == eposition::I) {
+    if (cur_rect->pos(curx, cury)== eposition::I) {
       move_fwd();
+      rid = map_->get_rid(curx+dx, cury+dy);
+      if (rid == -1)  // no adjacent, dead end
+        return;
+      // move to adjacent rect in (dx, dy)
+      curx += dx, cury += dy;
+      cur_rect = &(map_->rects[rid]);
     }
-
-    // we need to explicitly check jump points if on border L/R
-    if (onL)
-      cure = R2E(dx, dy, rdirect::L);
-    else if (onR)
-      cure = R2E(dx, dy, rdirect::R);
-
-    curp = E2R(dx, dy, cure);
 
     while (true) {
       // when the cur rect contains the goal
@@ -545,54 +536,30 @@ class rect_jump_point_locator
         break;
       }
       jps::scan_cnt++;
-      switch (curp) {
-        // base case
-        // on verticle border
-        case rdirect::L:
-        case rdirect::R:
-        {
-          if (cur_rect->disF(dx, dy, curx, cury) > (minstep<<1)) {
-            bool res = _find_jpt(cur_rect, cure, curx, cury, dx, dy, jpid);
-            if (res) {
-              jpts_.push_back((uint32_t)jpid);
-              return;
-            }
-          }
-          else {
-            if (_block_scan<dx, dy>(curx, cury))
-              return;
-          }
-        }
-        // cross the rect
-        case rdirect::B:
-        {
-          // move to the end of the border in this direction
-          // and going to move to adjacent rect
-          move_fwd();
-          curp = rdirect::F;
-        }
-        // move to adjacent rect
-        case rdirect::F:
-        {
-          int rid = map_->get_rid(curx+dx, cury+dy);
-          if (rid == -1)  // no adjacent, dead end
+
+      onL = cur_rect->onLR(rdirect::L, dx, dy, curx, cury);
+      onR = cur_rect->onLR(rdirect::R, dx, dy, curx, cury);
+      if (onL || onR) {
+        if (cur_rect->disF(dx, dy, curx, cury) > (minstep<<1)) {
+          eposition ep = R2E(dx, dy, onL?rdirect::L:rdirect::R);
+          bool res = _find_jpt(cur_rect, ep, curx, cury, dx, dy, jpid);
+          if (res) {
+            jpts_.push_back((uint32_t)jpid);
             return;
-
-          // move to adjacent rect in (dx, dy)
-          curx += dx, cury += dy;
-          cure = R2E(dx, dy, rdirect::B);
-          cur_rect = &(map_->rects[rid]);
-          onL = cur_rect->disLR(rdirect::L, dx, dy, curx, cury) == 0;
-          onR = cur_rect->disLR(rdirect::R, dx, dy, curx, cury) == 0;
-
-          // we need to explicitly check jump points if on border L/R
-          if (onL)
-            cure = R2E(dx, dy, rdirect::L);
-          else if (onR)
-            cure = R2E(dx, dy, rdirect::R);
-          curp = E2R(dx, dy, cure);
-        } break;
+          }
+        }
+        else {
+          if (_block_scan<dx, dy>(curx, cury))
+            return;
+        }
       }
+      move_fwd();
+      rid = map_->get_rid(curx+dx, cury+dy);
+      if (rid == -1)  // no adjacent, dead end
+        return;
+      // move to adjacent rect in (dx, dy)
+      curx += dx, cury += dy;
+      cur_rect = &(map_->rects[rid]);
     }
   }
 
