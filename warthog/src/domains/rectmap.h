@@ -275,7 +275,6 @@ class Rect {
   inline bool onLR(rdirect p, int dx, int dy, int curx, int cury) const {
     int ax = axis(R2E(dx, dy, p));
     return (dy * (ax - curx) + dx * (ax - cury)) == 0;
-    // return ((dy && (ax ^ curx))) == 0 && ((dx && (ax ^ cury))) == 0;
   }
 
   inline void get_range(const int& eid, int& lb, int& ub) const {

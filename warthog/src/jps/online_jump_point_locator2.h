@@ -50,7 +50,7 @@ class online_jump_point_locator2
     void set_label(int x, int y, bool flag) {
       uint32_t id = map_->to_padded_id(x, y);
       map_->set_label(id, flag);
-      rmap_->set_label(map_id_to_rmap_id(id), false);
+      rmap_->set_label(map_id_to_rmap_id(id), flag);
     }
     int get_label(int x, int y) { return map_->get_label(map_->to_padded_id(x, y)); }
 

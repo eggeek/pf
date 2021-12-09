@@ -508,26 +508,9 @@ class rect_jump_point_locator
 
     auto move_fwd = [&]() {
       d2F = cur_rect->disF(dx, dy, curx, cury);
-      switch (dx) {
-        case 0:
-          cury += dy * d2F;
-          break;
-        default:
-          curx += dx * d2F;
-          break;
-      }
+      curx += dx*d2F;
+      cury += dy*d2F;
     };
-    
-    // inside, then move to the forward edge
-    if (cur_rect->pos(curx, cury)== eposition::I) {
-      move_fwd();
-      rid = map_->get_rid(curx+dx, cury+dy);
-      if (rid == -1)  // no adjacent, dead end
-        return;
-      // move to adjacent rect in (dx, dy)
-      curx += dx, cury += dy;
-      cur_rect = &(map_->rects[rid]);
-    }
 
     while (true) {
       // when the cur rect contains the goal

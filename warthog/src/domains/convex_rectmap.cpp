@@ -49,8 +49,8 @@ vector<int> calc_adj(
   return adj;
 }
 
-vector<int> calc_jptx(int mapw, int maph, vector<int>& idmap,
-  locator* jpl, jps::direction d, int y, int xlb, int xub) {
+vector<int> calc_jptx(int mapw, int maph, vector<int>& idmap, 
+  locator* jpl, jps::direction d, int rid, int y, int xlb, int xub) {
   vector<int> res;
   vector<uint32_t> tjps;
   vector<cost_t> tcost;
@@ -59,7 +59,7 @@ vector<int> calc_jptx(int mapw, int maph, vector<int>& idmap,
   int dx, dy;
   d2v(d, dx, dy);
   uint32_t goalid = jpl->get_map()->to_padded_id(xub+dx, y);
-  for (int x=xlb; x!=xub+dx; x+=dx) {
+  for (int x=xlb; x!=xub+dx; x+=dx) if (idmap[y*mapw+x] == rid) {
     uint32_t padded_id = jpl->get_map()->to_padded_id(x, y);
     tjps.clear();
     tcost.clear();
@@ -75,7 +75,7 @@ vector<int> calc_jptx(int mapw, int maph, vector<int>& idmap,
 }
 
 vector<int> calc_jpty(int mapw, int maph, vector<int>& idmap,
-    locator* jpl, jps::direction d, int x, int ylb, int yub) {
+    locator* jpl, jps::direction d, int rid, int x, int ylb, int yub) {
   vector<int> res;
   vector<uint32_t> tjps;
   vector<cost_t> tcost;
@@ -84,7 +84,7 @@ vector<int> calc_jpty(int mapw, int maph, vector<int>& idmap,
   int dx, dy;
   d2v(d, dx, dy);
   uint32_t goalid = jpl->get_map()->to_padded_id(x, yub+dy);
-  for (int y=ylb; y!=yub+dy; y+=dy) {
+  for (int y=ylb; y!=yub+dy; y+=dy) if (idmap[y*mapw+x] == rid) {
     uint32_t padded_id = jpl->get_map()->to_padded_id(x, y);
     tjps.clear();
     tcost.clear();
@@ -109,23 +109,23 @@ void cr::init_convrects(vector<cg::FinalConvexRect>& fr,
     ConvRect r = ConvRect(fr[i]);
     // NORTH border
     r.adj[0]  = calc_adj(idmap, mapw, maph, r.x, r.x+r.w-1, r.y-1, r.y-1);
-    r.jptf[0] = calc_jptx(mapw, maph, idmap, jpl, jps::EAST, r.y, r.x, r.x+r.w-1);
-    r.jptr[0] = calc_jptx(mapw, maph, idmap, jpl, jps::WEST, r.y, r.x+r.w-1, r.x);
+    r.jptf[0] = calc_jptx(mapw, maph, idmap, jpl, jps::EAST, r.rid, r.y, r.x, r.x+r.w-1);
+    r.jptr[0] = calc_jptx(mapw, maph, idmap, jpl, jps::WEST, r.rid, r.y, r.x+r.w-1, r.x);
 
     // EAST border
     r.adj[1]  = calc_adj(idmap, mapw, maph, r.y, r.y+r.h-1, r.x+r.w, r.x+r.w);
-    r.jptf[1] = calc_jpty(mapw, maph, idmap, jpl, jps::SOUTH, r.x+r.w-1, r.y, r.y+r.h-1);
-    r.jptr[1] = calc_jpty(mapw, maph, idmap, jpl, jps::NORTH, r.x+r.w-1, r.y+r.h-1, r.y);
+    r.jptf[1] = calc_jpty(mapw, maph, idmap, jpl, jps::SOUTH, r.rid, r.x+r.w-1, r.y, r.y+r.h-1);
+    r.jptr[1] = calc_jpty(mapw, maph, idmap, jpl, jps::NORTH, r.rid, r.x+r.w-1, r.y+r.h-1, r.y);
 
     // SOUTH border
     r.adj[2]  = calc_adj(idmap, mapw, maph, r.x, r.x+r.w-1, r.y, r.y);
-    r.jptf[2] = calc_jptx(mapw, maph, idmap, jpl, jps::EAST, r.y+r.h-1, r.x, r.x+r.w-1);
-    r.jptr[2] = calc_jptx(mapw, maph, idmap, jpl, jps::WEST, r.x+r.w-1, r.x+r.w-1, r.x);
+    r.jptf[2] = calc_jptx(mapw, maph, idmap, jpl, jps::EAST, r.rid, r.y+r.h-1, r.x, r.x+r.w-1);
+    r.jptr[2] = calc_jptx(mapw, maph, idmap, jpl, jps::WEST, r.rid, r.y+r.h-1, r.x+r.w-1, r.x);
 
     // WEST border
     r.adj[3]  = calc_adj(idmap, mapw, maph, r.y, r.y+r.h-1, r.x-1, r.x-1);
-    r.jptf[3] = calc_jpty(mapw, maph, idmap, jpl, jps::SOUTH, r.x, r.y, r.y+r.h-1);
-    r.jptr[3] = calc_jpty(mapw, maph, idmap, jpl, jps::NORTH, r.x, r.y+r.h-1, r.y);
+    r.jptf[3] = calc_jpty(mapw, maph, idmap, jpl, jps::SOUTH, r.rid, r.x, r.y, r.y+r.h-1);
+    r.jptr[3] = calc_jpty(mapw, maph, idmap, jpl, jps::NORTH, r.rid, r.x, r.y+r.h-1, r.y);
 
     rects.push_back(r);
   }

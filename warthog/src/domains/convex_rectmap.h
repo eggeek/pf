@@ -24,6 +24,30 @@ inline rdir E2R(const int& dx, const int& dy, const epos& ep) {
   return rs::E2R(dx, dy, ep);
 }
 
+template<int dx, int dy, rdir rd>
+constexpr int lrdx() {
+  if (dx) return 0;
+  switch(rd) {
+    case rdir::L: return -dy;
+    case rdir::R: return dy;
+    default:
+      assert(false);
+      return -1;
+  }
+}
+
+template<int dx, int dy, rdir rd>
+constexpr int lrdy() {
+  if (dy) return 0;
+  switch(rd) {
+    case rdir::L: return -dx;
+    case rdir::R: return dx;
+    default:
+      assert(false);
+      return -1;
+  }
+}
+
 // a single convex rectangle
 class ConvRect: public rs::Rect {
 public:
@@ -56,10 +80,57 @@ public:
     }
     return true;
   }
+  template<int dx, int dy>
+  int get_lb() {
+    constexpr jps::direction d = jps::v2d(dx, dy);
+    switch (d) {
+      case jps::NORTH: return lb[0];
+      case jps::EAST:  return lb[1];
+      case jps::SOUTH: return lb[2];
+      case jps::WEST:  return lb[3];
+      default:
+        assert(false);
+        return -1;
+    }
+  }
+  template<int dx, int dy>
+  int get_ub() {
+    constexpr jps::direction d = jps::v2d(dx, dy);
+    switch (d) {
+      case jps::NORTH: return ub[0];
+      case jps::EAST:  return ub[1];
+      case jps::SOUTH: return ub[2];
+      case jps::WEST:  return ub[3];
+      default:
+        assert(false);
+        return -1;
+    }
+  }
+  template<int dx, int dy>
+  int cardinal_axis(int cx, int cy) {
+    switch(dx) {
+      case 0: return cx;
+      default: return cy;
+    }
+  }
+
+  // <dx, dy> is a cardinal move (one of it must be 0)
+  // return true if the move is blocked by the border
+  template<int dx, int dy>
+  bool is_blocked(int cx, int cy) {
+    int ax = cardinal_axis<dx, dy>(cx, cy);
+    return ax<get_lb<dx,dy>() || ax>get_ub<dx,dy>();
+  }
+
   inline int xl() const { return x; }
   inline int xu() const { return x+w-1; }
   inline int yl() const { return y; }
   inline int yu() const { return y+h-1; }
+  inline bool inrect(int cx, int cy) {
+    if (xl() <= cx && cx <= xu() && yl() <= cy && cy <= yu())
+      return true;
+    return false;
+  }
 };
 
 // a collection of convec rectangles 
@@ -131,6 +202,11 @@ public:
     return gmap->get_label(padid);
   }
 
+  inline void set_label(int x, int y, bool flag) {
+    int padid = gmap->to_padded_id(x, y);
+    gmap->set_label(padid, flag);
+  }
+
   // return the mask vertical, i.e. up,down
   inline int get_maskw(const int& x, const int& y) {
     int res = 3;
@@ -154,11 +230,37 @@ public:
   }
 
   inline ConvRect* get_rect(int x, int y) {
-    return &(rects[idmap[y * mapw + x]]);
+    // convex rect id starts from 1, so the index is id-1
+    return &(rects[idmap[y * mapw + x]-1]);
   }
 
   inline ConvRect* get_rect(int id) {
-    return &(rects[idmap[id]]);
+    // convex rect id starts from 1, so the index is id-1
+    return &(rects[idmap[id-1]]);
+  }
+
+  template<int dx, int dy, rdir rd>
+  inline bool is_blockedLR(int cx, int cy) {
+    constexpr int vx = lrdx<dx, dy, rd>();
+    constexpr int vy = lrdy<dx, dy, rd>();
+    assert(vx*dx+vy*dy == 0);
+    return !get_label(cx+(vx+dx), cy+(vy+dy));
+  }
+
+  // check whether (cx+dx, cy+dy) is a jump point
+  // <dx, dy> is a cardinal move
+  template<int dx, int dy>
+  inline bool is_nxtmove_jp(int cx, int cy) {
+    int cur_mask, nxt_mask;
+    if (dx) {
+      cur_mask = get_maskw(cx, cy);
+      nxt_mask = get_maskw(cx+dx, cy+dy);
+    }
+    else {
+      cur_mask = get_maskh(cx, cy);
+      nxt_mask = get_maskh(cx+dx, cy+dy);
+    }
+    return isjptr[cur_mask][nxt_mask];
   }
 
   int mem() { return sizeof(*this); }

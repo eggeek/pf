@@ -68,7 +68,7 @@ compute_direction_4c(int32_t px, int32_t py, int32_t x, int32_t y)
     return d; 
 }
 
-inline direction v2d(const int& dx, const int& dy) {
+constexpr inline direction v2d(const int& dx, const int& dy) {
   switch (dx) {
     case 1:
       switch (dy) {
