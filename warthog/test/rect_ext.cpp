@@ -25,6 +25,7 @@ typedef rs::Rect Rect;
 typedef rs::RectMap RectMap;
 string infile, outfile;
 bool verbose = false;
+const double EPS = 1e-3;
 const vector<string> desc = {
   "NORTH", "SOUTH", "EAST", "WEST",
   "NORTHEAST", "NORTHWEST", "SOUTHEAST", "SOUTHWEST"
@@ -248,9 +249,9 @@ void run_ext_rect(string rfile, vector<Visual>& vis) {
       cr::print_rect_map(xl, yl, xu, yu, i+1, idmap, jpl->get_map());
     }
     cr::SearchNode bestr = cr::get_best_rect({xu, yu, xu-xl+1, yu-yl+1}, idmap, jpl);
-    if (bestr.hvalue == 0) continue;
+    if (bestr.hvalue() == 0) continue;
     xl=bestr.x-bestr.w+1, xu=bestr.x, yl=bestr.y-bestr.h+1, yu=bestr.y;
-    if (verbose && bestr.hvalue != cr::get_heuristic(r.h, r.w)) {
+    if (verbose && bestr.hvalue() != cr::get_heuristic(r.h, r.w)) {
       printf("best rect from current:\n");
       cr::print_rect_map(xl, yl, xu, yu, i+1, idmap, jpl->get_map());
     }
@@ -380,6 +381,7 @@ void gen_rectid(string mapfile, string writeto) {
 }
 
 void gen_convrectid(string mapfile, string writeto) {
+  cr::verbose = verbose;
   cv::ConvRectMap crmap(mapfile.c_str());
   if (!writeto.empty()) {
     ofstream out;
@@ -396,6 +398,7 @@ void gen_convrectid(string mapfile, string writeto) {
 }
 
 void gen_convrect(string mapfile, string writeto) {
+  cr::verbose = verbose;
   cv::ConvRectMap crmap(mapfile.c_str());
   if (!writeto.empty()) {
     ofstream out;
@@ -458,6 +461,7 @@ TEST_CASE("gen-convrect") {
     {"../maps/dao/lak105d.map", "./test/rects/lak105d.convrect"},
     {"../maps/dao/lak107d.map", "./test/rects/lak107d.convrect"},
     {"../maps/dao/lak108d.map", "./test/rects/lak108d.convrect"},
+    {"./test/maps/Cat0.map", "./test/rects/Cat0.convrect"},
   };
   if (infile.empty()) {
     for (auto& each: cases) {
@@ -561,8 +565,6 @@ void test_internalJump(string mfile) {
     warthog::jps2_expansion_policy,
     warthog::pqueue_min> jps2(&heur, &expander, &open);
 
-  const double EPS = 1e-3;
-
   for (cv::ConvRect& r: convmap.rects) {
     vector<Point> nodes;
     for (int y=r.yl(); y<=r.yu(); y++)
@@ -604,16 +606,69 @@ void test_internalJump(string mfile) {
   delete cjpl;
 }
 
+void test_cardinaljump(string mfile) {
+  cv::ConvRectMap convmap(mfile);
+  rs::RectMap rmap(mfile.c_str());
+  rs::convrect_jump_point_locator* cjpl = new rs::convrect_jump_point_locator(&convmap);
+  rs::rect_jump_point_locator* rjpl = new rs::rect_jump_point_locator(&rmap);
+
+  int mapw = convmap.mapw, maph = convmap.maph;
+  REQUIRE(convmap.equal(*rmap.gmap));
+  REQUIRE(rmap.equal(*convmap.gmap));
+
+  convmap.print(cout);
+
+  direction ds[] = {NORTH, SOUTH, EAST, WEST}; 
+  for (int y=0; y<maph; y++)
+  for (int x=0; x<mapw; x++) 
+  if (convmap.idmap[y*mapw+x] != -1)
+  for (int i=0; i<4; i++)
+  {
+    direction d = ds[i];
+    cerr << "s( " << x << ", " << y << " ) " 
+         << "dir: " << desc[i] << " i=" << i << endl;
+    int cid = y*mapw+x;
+    cjpl->reset();
+    cjpl->jump(d, cid, warthog::INF32, convmap.get_rect(x, y));
+    rjpl->reset();
+    rjpl->jump(d, cid, warthog::INF32, rmap.get_rect(x, y));
+    REQUIRE(cjpl->get_costs().size() == rjpl->get_costs().size());
+    REQUIRE(cjpl->get_jpts().size() == rjpl->get_jpts().size());
+    if (cjpl->get_costs().size()) {
+      REQUIRE(cjpl->get_costs().back() == rjpl->get_costs().back());
+      REQUIRE(cjpl->get_jpts().back() == rjpl->get_jpts().back());
+    }
+  }
+
+  delete cjpl;
+  delete rjpl;
+} 
+
 TEST_CASE("internalJump") {
   vector<string> cases = {
-    // "./test/rects/stairNE.convrect",
-    // "./test/rects/stairSW.convrect",
-    // "./test/rects/cross1.convrect",
+    "./test/rects/stairBorder.convrect",
+    "./test/rects/stairNE.convrect",
+    "./test/rects/stairSW.convrect",
+    "./test/rects/cross1.convrect",
     "./test/rects/arena.convrect",
   };
   for (string f: cases) {
     cerr << "Running map: " << f << endl;
     test_internalJump(f);
+  }
+}
+
+TEST_CASE("cardinalJump") {
+  vector<string> cases = {
+    "../maps/dao/arena.map",
+    "../maps/bgmaps/AR0042SR.map",
+    "../maps/starcraft/CatwalkAlley.map",
+    "../maps/starcraft/GreenerPastures.map",
+    "../maps/iron/scene_sp_endmaps.map"
+  };
+  for (string f: cases) {
+    cerr << "Running map: " << f << endl;
+    test_cardinaljump(f);
   }
 }
 

@@ -49,22 +49,23 @@ struct SearchNode
 {
     // bot-right corner of rect
     int x, y, w, h;
-    long long hvalue;
 
-    SearchNode(int _x, int _y, int _w, int _h): x(_x), y(_y), w(_w), h(_h) {
-      hvalue = get_heuristic(_w, _h);
+    SearchNode(int _x, int _y, int _w, int _h): x(_x), y(_y), w(_w), h(_h) { }
+
+    long long hvalue() const {
+      return get_heuristic(h, w);
     }
 
     // Comparison.
     // Always take the one with highest h.
     bool operator<(const SearchNode& other) const
     {
-        return hvalue < other.hvalue;
+        return hvalue() < other.hvalue();
     }
 
     bool operator>(const SearchNode& other) const
     {
-        return hvalue > other.hvalue;
+        return hvalue() > other.hvalue();
     }
 };
 
@@ -307,7 +308,7 @@ inline int check_border_x(int xl, int yl, int xu, int yu, Point pa, Point pb, in
     if (idmap[cid] == -1) break;
     // (l, cury) is an traversable tile, then must belongs to rid
     // assert(idmap[cid] == rid);
-    if (idmap[cid] != rid) return -1;
+    if (idmap[cid] != rid) return -2;
     int dh = 0;
     // keep moving in dx@(l, cury);
     while ((cury+(dh+1)*dy)>=yl &&  // must be in the rectangle
@@ -316,7 +317,7 @@ inline int check_border_x(int xl, int yl, int xu, int yu, Point pa, Point pb, in
       dh++; // we can move on step
       // then the (l-dx, cury+dh*dy) position must be an obstacle
       if (xl<=curx-dx && curx-dx<=xu) {
-        if (idmap[(cury+dh*dy)*mapw + (curx-dx)] != -1) return -1;
+        if (idmap[(cury+dh*dy)*mapw + (curx-dx)] != -1) return -2;
       }
     }
     cury += dh*dy;
@@ -334,14 +335,14 @@ inline int check_border_y(int xl, int yl, int xu, int yu, Point pa, Point pb, in
   while (cury != pb.y+dy) {
     int cid = cury * mapw + curx;
     if (idmap[cid] == -1) break;
-    if (idmap[cid] != rid) return -1;
+    if (idmap[cid] != rid) return -2;
     int dw = 0;
     while ((curx+(dw+1)*dx)>=xl &&
            (curx+(dw+1)*dx)<=xu &&
            idmap[cury*mapw+curx+(dw+1)*dx]==rid) {
       dw++;
       if (yl<=cury-dy && cury-dy<=yu) {
-        if (idmap[(cury-dy)*mapw+(curx+dw*dx)] != -1) return -1;
+        if (idmap[(cury-dy)*mapw+(curx+dw*dx)] != -1) return -2;
       }
     }
     cury += dy;
@@ -400,25 +401,25 @@ inline bool try_expand_naive(int xl, int yl, int xu, int yu, int sx, int sy,
   l = check_border_x(xl, yl, xu, yu, lt, rt, 1, -1, rid, w, idmap);
   // check top border from right
   r = check_border_x(xl, yl, xu, yu, rt, lt, -1, -1, rid, w, idmap);
-  if (l==-1 || r==-1 || l <= r) return false;
+  if (l==-2 || r==-2 || l <= r) return false;
 
   // check bot border from left
   l = check_border_x(xl, yl, xu, yu, lb, rb, 1, 1, rid, w, idmap);
   // check bot border from right
   r = check_border_x(xl, yl, xu, yu, rb, lb, -1, 1, rid, w, idmap);
-  if (l==-1 || r==-1 || l <= r) return false;
+  if (l==-2 || r==-2 || l <= r) return false;
 
   // check left border from top 
   l = check_border_y(xl, yl, xu, yu, tl, bl, -1, 1, rid, w, idmap);
   // check left border from bot 
   r = check_border_y(xl, yl, xu, yu, bl, tl, -1, -1, rid, w, idmap);
-  if (l==-1 || r==-1 || l <= r) return false;
+  if (l==-2 || r==-2 || l <= r) return false;
   
   // check right border from top
   l = check_border_y(xl, yl, xu, yu, tr, br, 1, 1, rid, w, idmap);
   // check right border from bot
   r = check_border_y(xl, yl, xu, yu, br, tr, 1, -1, rid, w, idmap);
-  if (l==-1 || r==-1 || l <= r) return false;
+  if (l==-2 || r==-2 || l <= r) return false;
   return true;
 }
 
@@ -617,13 +618,13 @@ inline SearchNode get_best_rect(SearchNode cur, vector<int>& idmap, online_jump_
   for (int hi=1; hi<=h; hi++) {
     curw = min(curw, jpl->rayscan(WEST, cur.x, cur.y-hi+1)+1);
     long long hvalue = get_heuristic(curw, hi);
-    if (hvalue > res.h)
+    if (hvalue > res.hvalue())
       res = {cur.x, cur.y, curw, hi};
   }
   for (int wi=1; wi<=w; wi++) {
     curh = min(curh, jpl->rayscan(NORTH, cur.x-wi+1, cur.y)+1);
     long long hvalue = get_heuristic(wi, curh);
-    if (hvalue > res.h)
+    if (hvalue > res.hvalue())
       res = {cur.x, cur.y, wi, curh};
   }
   return res;
@@ -645,14 +646,23 @@ inline void make_rectangles(online_jump_point_locator2* jpl, vector<int>& idmap)
     else {
       int h = jpl->rayscan(NORTH, gmap->to_padded_id(x, y))+1;
       int w = jpl->rayscan(WEST, gmap->to_padded_id(x, y))+1;
-      pq.push({x, y, w, h});
+      SearchNode r = get_best_rect({x, y, w, h}, idmap, jpl);
+      pq.push(r);
     }
   } 
   while (!pq.empty()) {
     SearchNode node = pq.top(); pq.pop();
+    if (verbose) {
+      printf("when pop out:\n");
+      print_rect_map(node.x-node.w+1, node.y-node.h+1, node.x, node.y, 0, idmap, jpl->get_map());
+    }
     SearchNode r = get_best_rect(node, idmap, jpl);
-    if (r.h != node.h) {
-      if (r.h != 0) pq.push(r);
+    if (verbose) {
+      printf("best rect from current:\n");
+      print_rect_map(r.x-r.w+1, r.y-r.h+1, r.x, r.y, 0, idmap, jpl->get_map());
+    }
+    if (r.hvalue() != node.hvalue()) {
+      if (r.hvalue() != 0) pq.push(r);
       continue;
     }
     // use node
