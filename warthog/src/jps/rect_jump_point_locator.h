@@ -56,7 +56,7 @@ class rect_jump_point_locator
       if (cur_goal_id_ != goal_id) {
         cur_goal_id_ = goal_id;
         map_->to_xy(cur_goal_id_, _goalx, _goaly);
-        _goal_rid = map_->get_rid(_goalx, _goaly);
+        _goal_rid = map_->get_rid(goal_id);
         padded_goal_id = map_->gmap->to_padded_id(_goalx, _goaly);
       }
       if (rect->rid == _goal_rid) {
@@ -125,26 +125,6 @@ class rect_jump_point_locator
 
     void set_minarea(int v) {minarea = v;}
     void set_minstep(int v) {minstep = v;}
-
-    template<int dx, int dy>
-    uint32_t inline neis_const() {
-      switch (dy) {
-        case 1:
-          switch (dx) {
-            // SOUTHEAST <1, 1>
-            case 1: return 394752;
-            // SOUTHWEST <1, -1>
-            default: return 197376;
-          }
-        default:
-          switch (dx) {
-            // NORTHEAST <1, -1> 
-            case 1: return 1542;
-            // NORTHWEST <-1, -1>
-            default: return 771;
-          }
-      }
-    }
 
     jps::online_jump_point_locator2* get_jpl() { return jpl; }
 
@@ -245,7 +225,7 @@ class rect_jump_point_locator
       uint32_t padded_id = map_->gmap->to_padded_id(curx, cury);
       map_->gmap->get_neighbours(padded_id, (uint8_t*)&neis);
       // if cannot make the first diagonal move
-      if ((neis & neis_const<dx, dy>()) != neis_const<dx, dy>())
+      if ((neis & jps::neis_const<dx, dy>()) != jps::neis_const<dx, dy>())
         return (rectscan::Rect*)nullptr;
       else {
         curx += dx, cury += dy;
@@ -400,14 +380,12 @@ class rect_jump_point_locator
       Rect* r = &(map_->rects[rid]);
 
       int rL=0, rR=0, hori, vertL, vertR;
-      r->get_range(cure, rL, rR);
+      r->get_range(nxte, rL, rR);
       if (rL > ub) break;
       rL = max(rL, lb); 
       rR = min(rR, ub);
 
       if (rid == _goal_rid) {
-        rL = max(rL, lb);
-        rR = min(rR, ub);
         int ax = r->axis(nxte);
         int x, y;
         if (dx == 0) {
@@ -430,12 +408,12 @@ class rect_jump_point_locator
 
       hori = r->axis(nxte);
       vertL = r->axis(dx?eposition::N: eposition::W);
-      if (lb <= vertL && vertL <= ub) {
+      if (rL <= vertL && vertL <= rR) {
         if (_scanLR<dx, dy>(r, dx?hori: vertL, dx?vertL: hori))
           rL++;
       }
       vertR = r->axis(dx?eposition::S: eposition::E);
-      if (vertL != vertR && lb <= vertR && vertR <= ub) {
+      if (rL <= vertR && vertR <= rR) {
         if (_scanLR<dx, dy>(r, dx?hori:vertR, dx?vertR:hori))
           rR--;
       }

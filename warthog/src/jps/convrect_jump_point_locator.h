@@ -5,7 +5,6 @@
 // @author: shizhe
 // @created: 4/12/2021
 //
-
 #include "constants.h"
 #include "jps.h"
 #include "convex_rectmap.h"
@@ -120,50 +119,38 @@ class convrect_jump_point_locator
         // they cannot both be 0, which implies current node is goal
         assert( dgx || dgy);
       }
+      // base case: reach goal in cardinal direction
+      // convex property gaurantees that goal is reachable now
+      if (cx == _gx || cy == _gy) {
+        jpts_.push_back(gid_);
+        costs_.push_back((double)((_gx-cx)*dx+(_gy-cy)*dy)+cur_cost);
+        return true;
+      }
       int bX, bY, bD; // is dx,dy,<dx,dy> blocked
-      bool flag = true;
-      while (flag) {
-        // base case: reach goal in cardinal direction
-        // convex property gaurantees that goal is reachable now
+      while (rp->inside(cx+dx, cy+dy)) {
+        bX = map_->get_label(cx+dx, cy);      // is (cx+dx, cy) empty
+        bY = map_->get_label(cx, cy+dy);      // is (cx, cy+dy) empty
+        bD = map_->get_label(cx+dx, cy+dy);   // is (cx+dx, cy+dy) empty 
+        if (bX && bX && bY) { // case 0: can make diagonal move
+          cx += dx, cy += dy;
+          cur_cost += warthog::DBL_ROOT_TWO;
+        }
+        else if (bX ^ bY) { // case 1: bX and bY are different
+          if (!_cardinal_block_scan(dx*bX, dy*bY, cx, cy, rp))
+            break;
+          cx += dx*bX*(int)_cstc.back();
+          cy += dy*bY*(int)_cstc.back();
+          cur_cost += _cstc.back();
+        }
+        else { // case 2 or 3: dead-end
+          assert((!bD && (bX && bY)) || (!bX && !bY));
+          break;
+        }
         if (cx == _gx || cy == _gy) {
           jpts_.push_back(gid_);
           costs_.push_back((double)((_gx-cx)*dx+(_gy-cy)*dy)+cur_cost);
           return true;
         }
-        bX = map_->get_label(cx+dx, cy);      // is (cx+dx, cy) empty
-        bY = map_->get_label(cx, cy+dy);      // is (cx, cy+dy) empty
-        bD = map_->get_label(cx+dx, cy+dy);   // is (cx+dx, cy+dy) empty 
-        while (bX && bY) { // case 0
-          cx += dx;
-          cy += dy;
-          cur_cost += warthog::DBL_ROOT_TWO;
-
-          // base case: reach goal in cardinal direction
-          if (cx == _gx || cy == _gy) {
-            jpts_.push_back(gid_);
-            costs_.push_back((double)((_gx-cx)*dx+(_gy-cy)*dy)+cur_cost);
-            return true;
-          }
-          if (cx>rp->xu() || cx<rp->xl() || cy>rp->yu() || cy<rp->yl()) {
-            flag = false;
-            break;
-          }
-          bX = map_->get_label(cx+dx, cy);      // is (cx+dx, cy) empty
-          bY = map_->get_label(cx, cy+dy);      // is (cx, cy+dy) empty
-          bD = map_->get_label(cx+dx, cy+dy);   // is (cx+dx, cy+dy) empty 
-        }
-        // continue only in case 2 or case 3
-        if ((bX || bY) && flag) {
-          // run cardinal move to next jump point
-          if (!_cardinal_block_scan(dx*bX, dy*bY, cx, cy, rp))
-            break; // no jump point found in this direction, implies a deadend
-          cx += dx*bX*(int)_cstc.back();
-          cy += dy*bY*(int)_cstc.back();
-          cur_cost += _cstc.back();
-
-          if (cx>rp->xu() || cx<rp->xl() || cy>rp->yu() || cy<rp->yl())
-            break;
-        } else break;
       }
       return false;
     }
@@ -182,7 +169,7 @@ class convrect_jump_point_locator
       int lL = map_->get_label(cx-1, cy), lR = map_->get_label(cx+1, cy);
 
       // case 1: ".x."
-      if (lL == 1 && lR == 1) { 
+      if (lL == 1 && lR == 1) {
         // we can find the target only if it is on the way
         int cost = (_gy-cy)*dy;
         if (cost > 0 && _gx == cx) {
@@ -228,75 +215,23 @@ class convrect_jump_point_locator
     inline bool blockedLR(int cx, int cy, ConvRect* rp) {
       constexpr int lx = lrdx<dx, dy, rdir::L>();
       constexpr int ly = lrdy<dx, dy, rdir::L>();
-      if (rp->inrect(cx+lx, cy+ly) && !map_->get_label(cx+lx, cy+ly))
+      if (rp->inside(cx+lx, cy+ly) && !map_->get_label(cx+lx, cy+ly))
         return true;
       constexpr int rx = lrdx<dx, dy, rdir::R>();
       constexpr int ry = lrdy<dx, dy, rdir::R>();
-      if (rp->inrect(cx+rx, cy+ry) && !map_->get_label(cx+rx, cy+ry))
+      if (rp->inside(cx+rx, cy+ry) && !map_->get_label(cx+rx, cy+ry))
         return true;
       return false;
     }
 
     template<int dx, int dy>
     inline void _scan(ConvRect* rp, int cx, int cy, cost_t cur_cost) {
-      /* precondtion: <dx, dy> is a cardinal move
-       * assume scan in NORTH
-       * case 0: .x.  -> move forward
-       * case 1: @x.  -> blocked left, call _scanOnBound
-       * case 2: .x@  -> blocked right, call _scanOnBound
-       * case 3: x??  -> on left border, call _scanLR
-       * case 4: ??x  -> on right border, call _scanLR
-       */
-      int d2F;
-      bool onL, onR;
-
-      auto moveF = [&]() {
-        d2F = rp->disF(dx, dy, cx, cy);
-        cx += dx*d2F;
-        cy += dy*d2F;
-        cur_cost += d2F;
-      };
-
       while (true) {
-        if (rp->rid == _goal_rid) {
-          jpts_.push_back(map_->to_id(cx, cy));
-          costs_.push_back(cur_cost);
+        if (_scanCardinalInRect<dx, dy, true>(rp, cx, cy, cur_cost))
           break;
-        }
-        // case 1 or case 2
-        if (blockedLR<dx, dy>(cx, cy, rp)) {
-          // try to find an internal jpoint
-          if (_cardinal_block_scan(dx, dy, cx, cy, rp)) {
-            cost_t c = _cstc.back();
-            cx += dx * (int)c;
-            cy += dy * (int)c;
-            jpts_.push_back(map_->to_id(cx, cy));
-            costs_.push_back(cur_cost + c);
-            return;
-          }
-        }
-        else { // case 3 or case 4
-          onL = rp->onLR(rdir::L, dx, dy, cx, cy);
-          onR = rp->onLR(rdir::R, dx, dy, cx, cy);
-          if ((onL || onR) &&
-              _scanLR<dx, dy>(cx, cy, cur_cost, onL?rdir::L:rdir::R, rp)) return;
-        }
-        // no jpoint found and cannot move out rect
-        if (rp->is_blocked<dx, dy>(cx, cy)) return;
-        moveF();
-        int rid = map_->get_rid(cx+dx, cy+dy);
-        if (rid == -1) // no adjacent rect, dead end
-          return;
-        assert(rid > 0); // convex rect rid > 0
-        // check whether (cx+dx, cy+dy) is a jump point
-        if (map_->is_nxtmove_jp<dx, dy>(cx, cy)) {
-          jpts_.push_back(map_->to_id(cx+dx, cy+dy));
-          costs_.push_back(cur_cost+1);
-          return;
-        }
         cx += dx, cy += dy;
         cur_cost ++;
-        rp = &(map_->rects[rid-1]);
+        rp = map_->get_rect(cx, cy);
       }
     }
 
@@ -323,6 +258,7 @@ class convrect_jump_point_locator
         int nx, ny;
         map_->to_xy(*it, nx, ny);
         cost_t cost = abs(nx-cx) + abs(ny-cy);
+        debug_found_jpoint(nx, ny, cur_cost+cost);
         jpts_.push_back(*it);
         costs_.push_back(cur_cost + cost);
         return true;
@@ -330,9 +266,155 @@ class convrect_jump_point_locator
       return false;
     }
 
+    template<int dy>
+    inline void updateBoundX(int& lb, int& ub, int& lby, int& uby, 
+        cost_t& xlb_g, cost_t& xub_g, int cx, int cy, cost_t cur_cost, ConvRect* rp) {
+      if (cx >= rp->get_lb<0, dy>() && cx <= rp->get_ub<0, dy>()) {
+        if (cx <= lb) { lb = cx, lby = cy; xlb_g = cur_cost;}
+        if (cx >= ub) { ub = cx, uby = cy; xub_g = cur_cost;}
+      }
+    }
+
+    template<int dx>
+    inline void updateBoundY(int& lb, int& ub, int& lbx, int& ubx, 
+        cost_t& ylb_g, cost_t& yub_g, int cx, int cy, cost_t cur_cost, ConvRect* rp) {
+      if (cy >= rp->get_lb<dx, 0>() && cy <= rp->get_ub<dx, 0>()) {
+        if (cy <= lb) { lb = cy, lbx = cx; ylb_g = cur_cost;}
+        if (cy >= ub) { ub = cy, ubx = cx; yub_g = cur_cost;}
+      }
+    }
+
+    template<int dx, int dy>
+    inline bool _scanThroughDiag(int& cx, int& cy, cost_t& cur_cost,
+        ConvRect* rp, int& bX, int& bY, int& bD) {
+      /*
+       *  e.g. dy = -1
+       *
+       *    xlb        xub
+       * yl  +---------+
+       *     ^         ^
+       *     ^         ^       when xlb/xub is on border of the rect
+       *     ^         +       we need to check jpoints on border
+       *     ^         xub_y   [xlb_y, yl] / [xub_y, yl]
+       *     +                 similar in ylb/yub
+       *    xlb_y
+       *
+       */
+      int xlb = INF, xub = -1, ylb = INF, yub = -1;
+      // the corresponding y/x value for xlb/xub/ylb/yub
+      int xlb_y = INF, xub_y = INF, ylb_x = INF, yub_x = INF;
+      cost_t xlb_g=0, xub_g=0, ylb_g=0, yub_g=0;
+      bool res = true;
+      if ((cy != rp->yl() && cy != rp->yu()) || 
+          !_scanCardinalInRect<dx, 0>(rp, cx, cy, cur_cost))
+        updateBoundY<dx>(ylb, yub, ylb_x, yub_x, ylb_g, yub_g, cx, cy, cur_cost, rp);
+      if ((cx != rp->xl() && cx != rp->xu()) ||
+          !_scanCardinalInRect<0, dy>(rp, cx, cy, cur_cost))
+        updateBoundX<dy>(xlb, xub, xlb_y, xub_y, xlb_g, xub_g, cx, cy, cur_cost, rp);
+      // <cx, cy> is inside the rect rp, the gvalue is cur_cost
+      // return true if the diagonal move can reach the border of the rect
+      while (rp->inside(cx+dx, cy+dy)) {
+        bX = map_->get_label(cx+dx, cy);
+        bY = map_->get_label(cx, cy+dy);
+        bD = map_->get_label(cx+dx, cy+dy);
+        if (bD && bX && bY) { // case 0: can make diagonal move
+          cx += dx, cy += dy;
+          cur_cost += warthog::DBL_ROOT_TWO;
+
+          if ((cy != rp->yl() && cy != rp->yu()) ||
+              !_scanCardinalInRect<dx, 0>(rp, cx, cy, cur_cost))
+            updateBoundY<dx>(ylb, yub, ylb_x, yub_x, ylb_g, yub_g, cx, cy, cur_cost, rp);
+
+          if ((cx != rp->xl() && cx != rp->xu()) ||
+              !_scanCardinalInRect<0, dy>(rp, cx, cy, cur_cost))
+            updateBoundX<dy>(xlb, xub, xlb_y, xub_y, xlb_g, xub_g, cx, cy, cur_cost, rp);
+        }
+        else if (bX ^ bY) { // case 1: bX and bY are different
+          if (// in following cases, we have already scanned before the while-loop
+              (!bY && (cy == rp->yl() || cy == rp->yu())) || // x blocked at y border
+              (!bX && (cx == rp->xl() || cx == rp->xu())) || // y blocked at x border
+              !_cardinal_block_scan(dx*bX, dy*bY, cx, cy, rp)
+             ) {
+            res = false;
+            break;
+          }
+          cx += bX*dx*(int)_cstc.back();
+          cy += bY*dy*(int)_cstc.back();
+          cur_cost += _cstc.back();
+
+          if ((cy != rp->yl() && cy != rp->yu()) ||
+              !_scanCardinalInRect<dx, 0>(rp, cx, cy, cur_cost))
+            updateBoundY<dx>(ylb, yub, ylb_x, yub_x, ylb_g, yub_g, cx, cy, cur_cost, rp);
+
+          if ((cx != rp->xl() && cx != rp->xu()) ||
+              !_scanCardinalInRect<0, dy>(rp, cx, cy, cur_cost))
+            updateBoundX<dy>(xlb, xub, xlb_y, xub_y, xlb_g, xub_g, cx, cy, cur_cost, rp);
+        }
+        else { // case 2 or 3: dead end
+          assert((!bD && (bX && bY)) || (!bX && !bY));
+          res = false;
+          break;
+        }
+      }
+      if (xlb <= xub && _scanCardinalInRect<0, dy>(rp, xlb, xlb_y, xlb_g)) {
+        xlb++;  // move 1 step forward (dx>0) or backward (dx<0) 
+        xlb_y += dx*dy;  // update the y accordingly
+        xlb_g += dx*warthog::DBL_ROOT_TWO; // update the gvalue accordingly
+      }
+      if (xlb <= xub && _scanCardinalInRect<0, dy>(rp, xub, xub_y, xub_g)) {
+        xub--;
+        xub_y -= dx*dy;
+        xub_g -= dx*warthog::DBL_ROOT_TWO;
+      }
+      if (ylb <= yub && _scanCardinalInRect<dx, 0>(rp, ylb_x, ylb, ylb_g)) {
+        ylb++;
+        ylb_x += dx*dy;
+        ylb_g += dy*warthog::DBL_ROOT_TWO;
+      }
+      if (ylb <= yub && _scanCardinalInRect<dx, 0>(rp, yub_x, yub, yub_g)) {
+        yub--;
+        yub_x -= dx*dy;
+        yub_g -= dy*warthog::DBL_ROOT_TWO;
+      }
+      
+      if (xlb <= xub) _pushIntervalAdj<0, dy>(invlH, rp, xlb, xub, dx>0?xlb: xub, dx>0?xlb_y: xub_y, min(xlb_g, xub_g));
+      if (ylb <= yub) _pushIntervalAdj<dx, 0>(invlV, rp, ylb, yub, dy>0?ylb_x: yub_x, dy>0?ylb: yub, min(ylb_g, yub_g));
+      return res;
+    }
+
     template<int dx, int dy>
     inline void _scanDiag(int cx, int cy, cost_t cur_cost, ConvRect* rp) {
-      assert(false);
+      { // if cannot make the first diagonal move
+        uint32_t neis;
+        map_->gmap->get_neighbours(map_->gmap->to_padded_id(cx, cy), (uint8_t*)&neis);
+        if ((neis & jps::neis_const<dx, dy>()) != jps::neis_const<dx, dy>())
+          return;
+        // make the first diagonal move
+        cx += dx, cy += dy;
+        cur_cost += warthog::DBL_ROOT_TWO;
+        rp = map_->get_rect(cx, cy);
+      }
+
+      // cases are same as in internalDiagScan
+      int bX, bY, bD;
+      while (rp != nullptr) {
+        if (rp->rid == _goal_rid) {
+          jpts_.push_back(map_->to_id(cx, cy));
+          costs_.push_back(cur_cost);
+        }
+        if (!_scanThroughDiag<dx, dy>(cx, cy, cur_cost, rp, bX, bY, bD)) break;
+        bX = map_->get_label(cx+dx, cy);
+        bY = map_->get_label(cx, cy+dy);
+        bD = map_->get_label(cx+dx, cy+dy);
+        if (bD && bX && bY) {
+          cx += dx;
+          cy += dy;
+          cur_cost += warthog::DBL_ROOT_TWO;
+          rp = map_->get_rid(cx, cy) != -1? map_->get_rect(cx, cy): nullptr;
+        } else break;
+      }
+      _pushInvB2F_Y<dy>(invlH);
+      _pushInvB2F_X<dx>(invlV);
     }
 
     inline void reset() {
@@ -342,6 +424,7 @@ class convrect_jump_point_locator
 
     inline vector<uint32_t>& get_jpts() { return jpts_; }
     inline vector<cost_t>& get_costs() { return costs_; }
+    bool verbose = false;
 
   private:
     int gid_;
@@ -356,9 +439,15 @@ class convrect_jump_point_locator
     vector<uint32_t> _jptc;
     vector<cost_t> _cstc;
     struct Interval {
-      int lb, ub;
+      int lb, ub, px, py;
       cost_t pcost; // gvalue of parent
       ConvRect* r;
+      void print(ostream& out) {
+        out << " lb: " << lb << " ub: " << ub
+            << " parent (" << px << ", " << py << ")"
+            << " pcost: " << pcost
+            << " rid: " << r->rid;
+      }
     };
     queue<Interval> invlH, invlV;
 
@@ -377,16 +466,327 @@ class convrect_jump_point_locator
           break;
       }
       // set temp obstacle to avoid scan outside rect
-      bool tlabel = map_->get_label(bx, by);
-      map_->set_label(bx, by, false);
+      bool tlabel = jpl->get_label(bx, by);
+      jpl->set_label(bx, by, false);
       _jptc.clear();
       _cstc.clear();
       jpl->jump(d, map_->gmap->to_padded_id(curx, cury), padded_gid_,
           _jptc, _cstc);
       if (tlabel)
-        map_->set_label(bx, by, tlabel);
+        jpl->set_label(bx, by, tlabel);
       return !_cstc.empty();
     }
+
+    template<epos cure, epos nxte>
+    inline int bsearch_adj_rect(ConvRect* curr, int lb, int ub) {
+      int s = 0, t = curr->adj[cure].size()-1, l=0, r=0;
+      int best = t+1;
+      while (s<=t) {
+        int m = (s+t)>>1;
+        map_->rects[(curr->adj[cure][m])-1].get_range(nxte, l, r);
+        if (r < lb) s=m+1;
+        else {
+          best = m;
+          t = m-1;
+        }
+      }
+      return best;
+    }
+
+    // Precondition:
+    // interval [lb, ub] is on F border of curr
+    // push [lb, ub] in forward direction,
+    // and add adjacent intervals to FIFO
+    //
+    // Postcondition: [lb, ub] is in the nxtr if exist,
+    template<int dx, int dy>
+    inline void _pushIntervalAdj(queue<Interval>& invs, ConvRect* curr, 
+        int lb, int ub, int px, int py, cost_t cur_cost) {
+      constexpr epos cure = convrectscan::R2E<dx, dy, rdir::F>();
+      constexpr epos nxte = convrectscan::R2E<dx, dy, rdir::B>();
+
+      debug_push_intervalAdj(lb, ub, px, py, cur_cost, curr);
+      // int nxtx, nxty;
+      int sidx = bsearch_adj_rect<cure, nxte>(curr, lb, ub);
+      for (int i=sidx; i<(int)curr->adj[cure].size(); i++) {
+        int rid = curr->adj[cure][i];
+        ConvRect* r = &(map_->rects[rid-1]);
+
+        int rL, rU; 
+        // int nxtL, nxtU, nxtAx;
+        rL = r->get_lb(nxte);
+        rU = r->get_ub(nxte);
+        if (rL > ub) break;
+        rL = max(rL, lb); 
+        rU = min(rU, ub);
+
+        if (rid == _goal_rid) {
+          // a shorter path may pass another interval,
+          // so we should continue instead of break
+          continue;
+        }
+
+        // nxtAx = r->axis(nxte);
+        // nxtL = r->get_lb(nxte);
+        // nxtU = r->get_ub(nxte);
+        // if (rL <= nxtL && nxtL <= rU) {
+        //   nxtx = dx?nxtAx: nxtL, nxty = dx?nxtL: nxtAx;
+        //   if (_scanCardinalInRect<dx, dy>(r, nxtx, nxty, cur_cost))
+        //     rL++;
+        // }
+        // if (rL <= nxtU && nxtU <= rU) {
+        //   nxtx = dx?nxtAx: nxtU, nxty = dx?nxtU: nxtAx;
+        //   if (_scanCardinalInRect<dx, dy>(r, nxtx, nxty, cur_cost))
+        //     rU--;
+        // }
+        if (rL <= rU) {
+          debug_push_interval(rL, rU, px, py, cur_cost, r);
+          invs.push({rL, rU, px, py, cur_cost, r});
+        }
+      }
+    }
+
+    template<int dx>
+    inline void _pushInvB2F_X(queue<Interval>& invs) {
+      constexpr epos cure = convrectscan::R2E<dx, 0, rdir::B>();
+      constexpr epos nxte = convrectscan::R2E<dx, 0, rdir::F>();
+      int cx;
+      cost_t curcost;
+      /*
+       *    ???@<<<<<<<<<<  c.lb
+       *    @            <
+       *    + open lb    <
+       *    |            <
+       *    |            <
+       *    + open ub    <
+       *    @            <
+       *    @<<<<<<<<<<<<<  c.ub
+       *
+       *
+       */
+      while (!invs.empty()) {
+        Interval c = invs.front(); invs.pop();
+        debug_pop_interval(c);
+        jps::scan_cnt++;
+        cx = c.r->axis(cure);
+        if (c.lb <= c.ub ) { // when lb==ylb, we need to explicitly check jump poin
+          int &cy = c.lb;
+          curcost = c.pcost + octile_dist(c.px, c.py, cx, cy);
+          if (cy == c.r->get_lb(cure) && _scanCardinalInRect<dx, 0>(c.r, cx, cy, curcost))
+            cy++;
+        }
+        if (c.lb <= c.ub) { // when ub==ylu
+          int& cy = c.ub;
+          curcost = c.pcost + octile_dist(c.px, c.py, cx, cy);
+          if (cy == c.r->get_ub(cure) && _scanCardinalInRect<dx, 0>(c.r, cx, cy, curcost))
+            cy--;
+        }
+        // lb must be in open interval of the "forward" border
+        c.lb = max(c.lb, c.r->get_lb(nxte));
+        // ub must be in open interval of the "forward" border
+        c.ub = min(c.ub, c.r->get_ub(nxte));
+
+        cx = c.r->axis(nxte);
+        if (c.lb <= c.ub && map_->is_nxtmove_jp<dx, 0>(cx, c.lb)) {
+          curcost = c.pcost + octile_dist(c.px, c.py, cx, c.lb);
+          debug_found_jpoint(cx+dx, c.lb, curcost+1);
+          jpts_.push_back(map_->to_id(cx+dx, c.lb));
+          costs_.push_back(curcost+1);
+          c.lb++;
+        }
+        if (c.lb <= c.ub && map_->is_nxtmove_jp<dx, 0>(cx, c.ub)) {
+          curcost = c.pcost + octile_dist(c.px, c.py, cx, c.ub);
+          debug_found_jpoint(cx+dx, c.ub, curcost+1);
+          jpts_.push_back(map_->to_id(cx+dx, c.ub));
+          costs_.push_back(curcost+1);
+          c.ub--;
+        }
+        if (c.lb <= c.ub)
+          _pushIntervalAdj<dx, 0>(invs, c.r, c.lb, c.ub, c.px, c.py, c.pcost);
+      }
+    }
+
+    template<int dy>
+    inline void _pushInvB2F_Y(queue<Interval>& invs) {
+      // similar to _pushInvB2F_X
+      constexpr epos cure = convrectscan::R2E<0, dy, rdir::B>();
+      constexpr epos nxte = convrectscan::R2E<0, dy, rdir::F>();
+      int cy;
+      cost_t curcost;
+      while (!invs.empty()) {
+        Interval c = invs.front(); invs.pop();
+        debug_pop_interval(c);
+        jps::scan_cnt++;
+        cy = c.r->axis(cure);
+        if (c.lb <= c.ub) { // when lb==yl, we need to explicitly check jump poin
+          int &cx = c.lb;
+          curcost = c.pcost + octile_dist(c.px, c.py, cx, cy);
+          if (cx == c.r->get_lb(cure) && _scanCardinalInRect<0, dy>(c.r, cx, cy, curcost))
+            cx++;
+        }
+        if (c.lb <= c.ub) { // when ub==yu
+          int& cx = c.ub;
+          curcost = c.pcost + octile_dist(c.px, c.py, cx, cy);
+          if (cx == c.r->get_ub(cure) && _scanCardinalInRect<0, dy>(c.r, cx, cy, curcost))
+            cx--;
+        }
+        // lb must be in open interval of the "forward" border
+        c.lb = max(c.lb, c.r->get_lb(nxte));
+        // ub must be in open interval of the "forward" border
+        c.ub = min(c.ub, c.r->get_ub(nxte));
+
+        cy = c.r->axis(nxte);
+        if (c.lb <= c.ub && map_->is_nxtmove_jp<0, dy>(c.lb, cy)) {
+          curcost = c.pcost + octile_dist(c.px, c.py, c.lb, cy);
+          debug_found_jpoint(c.lb, cy+dy, curcost+1);
+          jpts_.push_back(map_->to_id(c.lb, cy+dy));
+          costs_.push_back(curcost+1);
+          c.lb++;
+        }
+        if (c.lb <= c.ub && map_->is_nxtmove_jp<0, dy>(c.ub, cy)) {
+          curcost = c.pcost + octile_dist(c.px, c.py, c.ub, cy);
+          debug_found_jpoint(c.ub, cy+dy, curcost+1);
+          jpts_.push_back(map_->to_id(c.ub, cy+dy));
+          costs_.push_back(curcost+1);
+          c.ub--;
+        }
+        if (c.lb <= c.ub)
+          _pushIntervalAdj<0, dy>(invs, c.r, c.lb, c.ub, c.px, c.py, c.pcost);
+      }
+    }
+
+    template<int dx, int dy, bool inplace=false>
+    inline bool _scanCardinalInRect(
+        ConvRect* rp, int& cx, int& cy, cost_t& cur_cost) {
+      /* precondtion: <dx, dy> is a cardinal move
+       * e.g. when scan in NORTH
+       * case 0: .x.  -> move forward
+       * case 1: @x.  -> blocked left, call _scanOnBound
+       * case 2: .x@  -> blocked right, call _scanOnBound
+       * case 3: x??  -> on left border, call _scanLR
+       * case 4: ??x  -> on right border, call _scanLR
+       * return true if found jump point or dead end
+       */
+
+      int d2F;
+      bool onL, onR;
+      int nx, ny;
+      if (rp->rid == _goal_rid) {
+        jpts_.push_back(map_->to_id(cx, cy));
+        costs_.push_back(cur_cost);
+        return true;
+      }
+      // case 1 or case 2
+      if (blockedLR<dx, dy>(cx, cy, rp)) {
+        // try to find an internal jpoint
+        if (_cardinal_block_scan(dx, dy, cx, cy, rp)) {
+          cost_t c = _cstc.back();
+          nx = cx + dx * (int)c;
+          ny = cy + dy * (int)c;
+          debug_found_jpoint(nx, ny, cur_cost+c);
+          jpts_.push_back(map_->to_id(nx, ny));
+          costs_.push_back(cur_cost + c);
+          if (inplace) { cx = nx, cy = ny; }
+          return true;
+        }
+      }
+      else { // case 3 or case 4
+        onL = rp->onLR(rdir::L, dx, dy, cx, cy);
+        onR = rp->onLR(rdir::R, dx, dy, cx, cy);
+        if ((onL || onR) &&
+            _scanLR<dx, dy>(cx, cy, cur_cost, onL?rdir::L:rdir::R, rp))
+          return true;
+      }
+      // no jpoint found and cannot move out rect
+      if (rp->is_blocked<dx, dy>(cx, cy)) return true;
+      // move forward
+      d2F = rp->disF(dx, dy, cx, cy);
+      nx = cx + dx*d2F, ny = cy + dy*d2F;
+      cost_t nxt_cost = cur_cost + d2F;
+      int rid = map_->get_rid(nx+dx, ny+dy);
+      if (rid == -1) // no adjacent rect, dead end
+        return true;
+      assert(rid > 0); // convex rect rid > 0
+      // check whether (cx+dx, cy+dy) is a jump point
+      if (map_->is_nxtmove_jp<dx, dy>(nx, ny)) {
+        debug_found_jpoint(nx+dx, ny+dy, nxt_cost+1);
+        jpts_.push_back(map_->to_id(nx+dx, ny+dy));
+        costs_.push_back(nxt_cost+1);
+        return true;
+      }
+      if (inplace) {
+        cx = nx, cy = ny, cur_cost = nxt_cost;
+      }
+      return false;
+    }
+
+    inline void debug_found_jpoint(int x, int y, cost_t gval) {
+      if (verbose) {
+        cerr << "Found jump point at (" << x << ", " << y << ")"
+             << " id: " << map_->to_id(x, y) << " gval:" << gval
+             << " rid: " << map_->get_rid(x, y) << endl;
+      }
+    }
+
+    inline void debug_found_jpoint(int id, cost_t gval) {
+      if (verbose) {
+        int x, y;
+        map_->to_xy(id, x, y);
+        debug_found_jpoint(x, y, gval);
+      }
+    }
+
+    inline void debug_pop_interval(Interval inv) {
+      if (verbose) {
+        cerr << "Pop interval: ";
+        inv.print(cerr);
+        cerr << endl;
+      }
+    }
+
+    inline void debug_push_intervalAdj(int lb, int ub, int px, int py, cost_t c, ConvRect* r) {
+      if (verbose) {
+        cerr << "Push interval to adjacent: ";
+        Interval t{lb, ub, px, py, c, r};
+        t.print(cerr);
+        cerr << endl;
+      }
+    }
+
+    inline void debug_push_interval(int lb, int ub, int px, int py, cost_t c, ConvRect* r) {
+      if (verbose) {
+        cerr << "Push interval to queue: ";
+        Interval t{lb, ub, px, py, c, r};
+        t.print(cerr);
+        cerr << endl;
+      }
+    }
+
+    // template<int dx, int dy>
+    // inline void _pushInterval(queue<Interval>& invs) {
+    //   int ax, lb, ub, cx, cy;
+    //   cost_t curcost;
+    //   constexpr epos cure = convrectscan::R2E<dx, dy, rdir::B>();
+    //
+    //   while (!invs.empty()) {
+    //     Interval c = invs.front(); invs.pop();
+    //     debug_pop_interval(c);
+    //     ax = c.r->axis(cure);
+    //     lb = c.lb, ub = c.ub;
+    //     jps::scan_cnt++;
+    //     cx = dx?ax: lb, cy = dx?lb: ax;
+    //     curcost = c.pcost + octile_dist(c.px, c.py, cx, cy);
+    //     if (_scanCardinalInRect<dx, dy>(c.r, cx, cy, curcost))
+    //       lb++;
+    //     cx = dx?ax: ub, cy = dx?ub: ax;
+    //     curcost = c.pcost + octile_dist(c.px, c.py, cx, cy);
+    //     if (lb <= ub && _scanCardinalInRect<dx, dy>(c.r, cx, cy, curcost))
+    //       ub--;
+    //     if (lb <= ub) {
+    //       _pushIntervalF<dx, dy>(invs, c.r, lb, ub, c.px, c.py, c.pcost);
+    //     }
+    //   }
+    // }
 }; 
 
 }}

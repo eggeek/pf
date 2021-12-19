@@ -11,6 +11,7 @@
 #include "flexible_astar.h"
 #include "octile_heuristic.h"
 #include "rect_jump_point_locator.h"
+#include "rect_expansion_policy.h"
 #include "convrect_jump_point_locator.h"
 #include "grid2convex_rect.h"
 #include "convex_rectmap.h"
@@ -23,6 +24,8 @@ namespace rs = warthog::rectscan;
 typedef cr::Point Point;
 typedef rs::Rect Rect;
 typedef rs::RectMap RectMap;
+typedef rs::ConvRectMap ConvRectMap;
+typedef rs::ConvRect ConvRect;
 string infile, outfile;
 bool verbose = false;
 const double EPS = 1e-3;
@@ -578,7 +581,7 @@ void test_internalJump(string mfile) {
       int delx = v.x - u.x, dely = v.y - u.y;
       int cid = u.y*convmap.mapw+u.x;
       int gid = v.y*convmap.mapw+v.x;
-      double plen = warthog::INF32;
+      double plen = rs::INF;
       for (int i=0; i<8; i++) {
         int vx = warthog::dx[i]*delx;
         int vy = warthog::dy[i]*dely;
@@ -586,12 +589,12 @@ void test_internalJump(string mfile) {
           direction d = v2d(warthog::dx[i], warthog::dy[i]);
           cerr << "s( " << u.x << ", " << u.y << " ) "
                << "t( " << v.x << ", " << v.y << " ) "
-               << "dir: " << desc[i] << endl;
+               << "dir: " << desc[i] << " i=" << i << endl;
           cjpl->reset();
           cjpl->jump(d, cid, gid, &r);
           if (cjpl->get_jpts().size() && (int)cjpl->get_jpts().back()==gid) {
             // path length must be exactly same if reach target via another starting direction
-            if (plen != warthog::INF32)
+            if (plen != rs::INF)
               REQUIRE(plen == cjpl->get_costs().back());
             plen = cjpl->get_costs().back();
           }
@@ -616,7 +619,7 @@ void test_cardinaljump(string mfile) {
   REQUIRE(convmap.equal(*rmap.gmap));
   REQUIRE(rmap.equal(*convmap.gmap));
 
-  convmap.print(cout);
+  if (verbose) convmap.print(cout);
 
   direction ds[] = {NORTH, SOUTH, EAST, WEST}; 
   for (int y=0; y<maph; y++)
@@ -629,9 +632,9 @@ void test_cardinaljump(string mfile) {
          << "dir: " << desc[i] << " i=" << i << endl;
     int cid = y*mapw+x;
     cjpl->reset();
-    cjpl->jump(d, cid, warthog::INF32, convmap.get_rect(x, y));
+    cjpl->jump(d, cid, rs::INF, convmap.get_rect(x, y));
     rjpl->reset();
-    rjpl->jump(d, cid, warthog::INF32, rmap.get_rect(x, y));
+    rjpl->jump(d, cid, rs::INF, rmap.get_rect(x, y));
     REQUIRE(cjpl->get_costs().size() == rjpl->get_costs().size());
     REQUIRE(cjpl->get_jpts().size() == rjpl->get_jpts().size());
     if (cjpl->get_costs().size()) {
@@ -639,10 +642,155 @@ void test_cardinaljump(string mfile) {
       REQUIRE(cjpl->get_jpts().back() == rjpl->get_jpts().back());
     }
   }
-
   delete cjpl;
   delete rjpl;
 } 
+
+void pseudo_convex_expand(rs::ConvRectMap* cmap, int x, int y, 
+    direction d, rs::rect_expansion_policy* expd, 
+    map<uint32_t, warthog::cost_t>& jpts) {
+  queue<warthog::search_node*> q;
+  int cid = y*cmap->mapw+x;
+  int dx, dy;
+  int nx, ny, px, py, cntd;
+  d2v(d, dx, dy);
+  warthog::problem_instance pi(cid, rs::INF, verbose);
+  warthog::search_node* snode = expd->generate_start_node(&pi);
+  expd->get_jpl()->reset();
+  expd->get_jpl()->jump(d, cid, rs::INF, expd->get_map()->get_rect(x, y));
+  vector<uint32_t> sucids = expd->get_jpl()->get_jpts();
+  vector<warthog::cost_t> cs = expd->get_jpl()->get_costs();
+  for (int i=0; i<(int)sucids.size(); i++) {
+    warthog::search_node* n = expd->generate(sucids[i]);
+    n->init(snode->get_search_number(), snode->get_id(), cs[i], cs[i]);
+
+    expd->get_xy(n->get_id(), nx, ny);
+    cntd = min(abs(nx-x), abs(ny-y));
+    px = x + cntd * dx;
+    py = y + cntd * dy;
+    int rid = cmap->get_rid(px, py);
+    bool cardinal_x = (px != nx);
+
+    ConvRect* cr = cmap->get_rect(nx, ny);
+    if (cr->rid != rid || 
+        (!cardinal_x && (nx == cr->xl() || nx == cr->xu())) ||
+        (cardinal_x  && (ny == cr->yl() || ny == cr->yu()))) {
+      jpts[n->get_id()] = cs[i];
+      if(pi.verbose_) {
+          cerr << "  generating (edgecost=" << cs[i]<<") ("<< nx <<", "<< ny <<") crid:"
+               << cmap->get_rid(nx, ny) << ", rid:" << rid << "...";
+          n->print(cerr);
+          cerr << endl;
+      }
+    }
+    else q.push(n);
+  }
+  map<int, warthog::cost_t> gtable;
+
+  while (!q.empty()) {
+    warthog::search_node* c = q.front(); q.pop();
+    c->set_expanded(true);
+
+    if(pi.verbose_) {
+      int32_t x, y;
+      expd->get_xy(c->get_id(), x, y);
+      cerr << ". expanding ("<<x<<", "<<y<<")..."; c->print(cerr);
+      cerr << endl;
+    }
+    expd->expand(c, &pi);
+    warthog::search_node* n = 0;
+    warthog::cost_t cn = 0;
+    for (expd->first(n, cn); n != 0; expd->next(n, cn)) {
+      expd->get_xy(n->get_id(), nx, ny);
+      expd->get_xy(c->get_id(), px, py);
+      cntd = min(abs(nx-px), abs(ny-py));
+      int rid = cmap->get_rid(px+cntd*dx, py+cntd*dy);
+      warthog::cost_t gval = c->get_g() + cn;
+      n->init(c->get_search_number(), c->get_id(), gval, gval);
+      if (gtable.find(n->get_id()) == gtable.end() || gtable[n->get_id()] > gval) {
+        gtable[n->get_id()] = gval;
+        ConvRect* cr = cmap->get_rect(nx, ny);
+        bool cardinal_x = (px+cntd*dx != nx);
+        if (cr->rid != rid || 
+            (!cardinal_x && (nx == cr->xl() || nx == cr->xu())) ||
+            (cardinal_x  && (ny == cr->yl() || ny == cr->yu()))) {
+          jpts[n->get_id()] = gval;
+          if(pi.verbose_) {
+              cerr << "  generating (edgecost=" << cn<<") ("<< nx <<", "<< ny <<") crid:"
+                   << cmap->get_rid(nx, ny) << ", rid:" << rid << "...";
+              n->print(cerr);
+              cerr << endl;
+          }
+        }
+        else q.push(n);
+      }
+    }
+  }
+}
+
+void report(map<uint32_t, warthog::cost_t> p1, vector<uint32_t> cp, ConvRectMap& m) {
+  set<uint32_t> sp(cp.begin(), cp.end());
+  int x, y;
+  for (auto& it: p1) {
+    if (sp.find(it.first) == sp.end()) {
+      m.to_xy(it.first, x, y);
+      cerr << "cjpl missing: (" << x << ", " << y << ")" << endl;
+    }
+  }
+  for (uint32_t id: cp) {
+    if (p1.find(id) == p1.end()) {
+      m.to_xy(id, x, y);
+      cerr << "jpl missing: (" << x << ", " << y << ")" << endl;
+    }
+  }
+  sort(cp.begin(), cp.end());
+  for (int i=1; i<(int)cp.size(); i++) {
+    if (cp[i] == cp[i-1]) {
+      m.to_xy(cp[i], x, y);
+      cerr << "cjpl duplicate: (" << x << ", " << y << ")" << endl; 
+    }
+  }
+}
+
+void test_diagJump(string rfile, string crfile) {
+  cv::ConvRectMap convmap(crfile);
+  rs::convrect_jump_point_locator* cjpl = new rs::convrect_jump_point_locator(&convmap);
+  rs::RectMap rmap(rfile.c_str());
+  rs::rect_expansion_policy expd(&rmap);
+  cjpl->verbose = verbose;
+
+  int mapw = convmap.mapw, maph = convmap.maph;
+  REQUIRE(convmap.equal(*rmap.gmap));
+  REQUIRE(rmap.equal(*convmap.gmap));
+  map<uint32_t, warthog::cost_t> jpts;
+
+  if (verbose) convmap.print(cout);
+  direction ds[] = {NORTHEAST, NORTHWEST, SOUTHEAST, SOUTHWEST}; 
+  for (int y=0; y<maph; y++)
+  for (int x=0; x<mapw; x++)
+  if (convmap.idmap[y*mapw+x] != -1)
+  for (int i=0; i<4; i++) {
+    direction d = ds[i];
+    cerr << "s( " << x << ", " << y << " ) " 
+         << "dir: " << desc[4+i] << " i=" << i << endl;
+    int cid = y*mapw+x;
+    cjpl->reset();
+    cjpl->jump(d, cid, rs::INF, convmap.get_rect(x, y));
+
+    jpts.clear();
+    pseudo_convex_expand(&convmap, x, y, d, &expd, jpts);
+    vector<uint32_t> cjpts = cjpl->get_jpts();
+    vector<warthog::cost_t> costs = cjpl->get_costs();
+    report(jpts, cjpts, convmap);
+    for (int i=0; i<(int)cjpts.size(); i++) {
+      REQUIRE(jpts.find(cjpts[i]) != jpts.end());
+      REQUIRE(jpts[cjpts[i]] == costs[i]);
+    }
+    REQUIRE(jpts.size() == cjpts.size());
+  }
+  delete cjpl;
+}
+
 
 TEST_CASE("internalJump") {
   vector<string> cases = {
@@ -651,6 +799,12 @@ TEST_CASE("internalJump") {
     "./test/rects/stairSW.convrect",
     "./test/rects/cross1.convrect",
     "./test/rects/arena.convrect",
+    "./test/rects/isound1.convrect",
+    "./test/rects/lak101d.convrect",
+    "./test/rects/lak105d.convrect",
+    "./test/rects/lak107d.convrect",
+    "./test/rects/lak108d.convrect",
+    "./test/rects/Cat0.convrect",
   };
   for (string f: cases) {
     cerr << "Running map: " << f << endl;
@@ -669,6 +823,22 @@ TEST_CASE("cardinalJump") {
   for (string f: cases) {
     cerr << "Running map: " << f << endl;
     test_cardinaljump(f);
+  }
+}
+
+TEST_CASE("diagJump") {
+  vector<pair<string, string>> cases {
+    {"../maps/dao/arena.map", "./test/rects/arena.convrect"},
+    {"../maps/dao/isound1.map", "./test/rects/isound1.convrect"},
+    {"../maps/dao/lak101d.map", "./test/rects/lak101d.convrect"},
+    {"../maps/dao/lak105d.map", "./test/rects/lak105d.convrect"},
+    {"../maps/dao/lak107d.map", "./test/rects/lak107d.convrect"},
+    {"../maps/dao/lak108d.map", "./test/rects/lak108d.convrect"},
+    {"./test/maps/Cat0.map", "./test/rects/Cat0.convrect"},
+  };
+  for (auto& c: cases) {
+    cerr << "Running map: " << c.first << endl;
+    test_diagJump(c.first, c.second);
   }
 }
 

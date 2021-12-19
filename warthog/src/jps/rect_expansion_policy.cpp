@@ -30,7 +30,7 @@ void rexpand::expand(
   vector<uint32_t> &jpts = jpl_->get_jpts();
   vector<cost_t> &costs = jpl_->get_costs();
 
-  if (curr->rid == map_->get_rect(goal_id)->rid) {
+  if (curr->rid == map_->get_rid(goal_id)) {
     jpts.push_back(goal_id);
     int curx, cury, gx, gy;
     map_->to_xy(cur_id, curx, cury);

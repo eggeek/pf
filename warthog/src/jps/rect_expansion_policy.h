@@ -44,6 +44,9 @@ class rect_expansion_policy: public expansion_policy
     virtual warthog::search_node*
     generate_target_node(warthog::problem_instance* pi);
 
+    rect_jump_point_locator* get_jpl() { return jpl_; }
+    RectMap* get_map() { return map_; }
+
 	private:
 		rectscan::RectMap* map_;
 		rect_jump_point_locator* jpl_;

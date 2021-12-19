@@ -113,17 +113,17 @@ void cr::init_convrects(vector<cg::FinalConvexRect>& fr,
     r.jptr[0] = calc_jptx(mapw, maph, idmap, jpl, jps::WEST, r.rid, r.y, r.x+r.w-1, r.x);
 
     // EAST border
-    r.adj[1]  = calc_adj(idmap, mapw, maph, r.y, r.y+r.h-1, r.x+r.w, r.x+r.w);
+    r.adj[1]  = calc_adj(idmap, mapw, maph, r.x+r.w, r.x+r.w, r.y, r.y+r.h-1);
     r.jptf[1] = calc_jpty(mapw, maph, idmap, jpl, jps::SOUTH, r.rid, r.x+r.w-1, r.y, r.y+r.h-1);
     r.jptr[1] = calc_jpty(mapw, maph, idmap, jpl, jps::NORTH, r.rid, r.x+r.w-1, r.y+r.h-1, r.y);
 
     // SOUTH border
-    r.adj[2]  = calc_adj(idmap, mapw, maph, r.x, r.x+r.w-1, r.y, r.y);
+    r.adj[2]  = calc_adj(idmap, mapw, maph, r.x, r.x+r.w-1, r.y+r.h, r.y+r.h);
     r.jptf[2] = calc_jptx(mapw, maph, idmap, jpl, jps::EAST, r.rid, r.y+r.h-1, r.x, r.x+r.w-1);
     r.jptr[2] = calc_jptx(mapw, maph, idmap, jpl, jps::WEST, r.rid, r.y+r.h-1, r.x+r.w-1, r.x);
 
     // WEST border
-    r.adj[3]  = calc_adj(idmap, mapw, maph, r.y, r.y+r.h-1, r.x-1, r.x-1);
+    r.adj[3]  = calc_adj(idmap, mapw, maph, r.x-1, r.x-1, r.y, r.y+r.h-1);
     r.jptf[3] = calc_jpty(mapw, maph, idmap, jpl, jps::SOUTH, r.rid, r.x, r.y, r.y+r.h-1);
     r.jptr[3] = calc_jpty(mapw, maph, idmap, jpl, jps::NORTH, r.rid, r.x, r.y+r.h-1, r.y);
 

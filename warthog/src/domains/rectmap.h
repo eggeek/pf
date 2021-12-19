@@ -472,6 +472,11 @@ class RectMap {
     return idmap[y * mapw + x];
   }
 
+  inline int get_rid(int id) {
+    if (id >= 0 && id < (int)idmap.size()) return idmap[id];
+    else return -1;
+  }
+
   inline Rect* get_rect(int x, int y) {
     return &(rects[idmap[y * mapw + x]]);
   }

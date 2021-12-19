@@ -118,6 +118,26 @@ inline void d2v(const direction& d, int& dx, int& dy) {
   }
 }
 
+template<int dx, int dy>
+uint32_t inline neis_const() {
+  switch (dy) {
+    case 1:
+      switch (dx) {
+        // SOUTHEAST <1, 1>
+        case 1: return 394752;
+        // SOUTHWEST <1, -1>
+        default: return 197376;
+      }
+    default:
+      switch (dx) {
+        // NORTHEAST <1, -1> 
+        case 1: return 1542;
+        // NORTHWEST <-1, -1>
+        default: return 771;
+      }
+  }
+}
+
 inline warthog::jps::direction
 compute_direction_4c(uint32_t n1_xy_id, uint32_t n2_xy_id, uint32_t mapwidth)
 {

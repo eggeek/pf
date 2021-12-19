@@ -37,6 +37,45 @@ constexpr int lrdx() {
 }
 
 template<int dx, int dy, rdir rd>
+constexpr epos R2E() {
+  warthog::jps::direction d = jps::v2d(dx, dy);
+  switch(d) {
+    case jps::NORTH:
+      switch(rd) {
+        case rdir::B: return epos::S;
+        case rdir::L: return epos::W;
+        case rdir::F: return epos::N;
+        case rdir::R: return epos::E;
+      }
+    case jps::SOUTH:
+      switch(rd) {
+        case rdir::B: return epos::N;
+        case rdir::L: return epos::E;
+        case rdir::F: return epos::S;
+        case rdir::R: return epos::W;
+      }
+    case jps::EAST:
+      switch(rd) {
+        case rdir::B: return epos::W;
+        case rdir::L: return epos::N;
+        case rdir::F: return epos::E;
+        case rdir::R: return epos::S;
+      }
+    case jps::WEST:
+      switch(rd) {
+        case rdir::B: return epos::E;
+        case rdir::L: return epos::S;
+        case rdir::F: return epos::W;
+        case rdir::R: return epos::N;
+      }
+    default:
+      assert(false);
+      return epos::I;
+  }
+
+}
+
+template<int dx, int dy, rdir rd>
 constexpr int lrdy() {
   if (dy) return 0;
   switch(rd) {
@@ -93,6 +132,9 @@ public:
         return -1;
     }
   }
+
+  int get_lb(epos ep) { return lb[int(ep)]; }
+
   template<int dx, int dy>
   int get_ub() {
     constexpr jps::direction d = jps::v2d(dx, dy);
@@ -106,6 +148,9 @@ public:
         return -1;
     }
   }
+
+  int get_ub(epos ep) { return ub[int(ep)]; }
+
   template<int dx, int dy>
   int cardinal_axis(int cx, int cy) {
     switch(dx) {
@@ -126,7 +171,7 @@ public:
   inline int xu() const { return x+w-1; }
   inline int yl() const { return y; }
   inline int yu() const { return y+h-1; }
-  inline bool inrect(int cx, int cy) {
+  inline bool inside(int cx, int cy) {
     if (xl() <= cx && cx <= xu() && yl() <= cy && cy <= yu())
       return true;
     return false;
@@ -230,13 +275,14 @@ public:
   }
 
   inline ConvRect* get_rect(int x, int y) {
+    if (idmap[y*mapw+x]==-1) return nullptr;
     // convex rect id starts from 1, so the index is id-1
     return &(rects[idmap[y * mapw + x]-1]);
   }
 
   inline ConvRect* get_rect(int id) {
     // convex rect id starts from 1, so the index is id-1
-    return &(rects[idmap[id-1]]);
+    return &(rects[idmap[id]-1]);
   }
 
   template<int dx, int dy, rdir rd>
