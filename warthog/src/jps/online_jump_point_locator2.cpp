@@ -163,7 +163,7 @@ warthog::jps::online_jump_point_locator2::jump(warthog::jps::direction d,
     __jump_west_fp = &warthog::jps::online_jump_point_locator2::__jump_west;
 
 	// cache node and goal ids so we don't need to convert all the time
-	if(goal_id != current_goal_id_)
+	if(goal_id != INF32 && goal_id != current_goal_id_)
 	{
 		current_goal_id_ = goal_id;
 		current_rgoal_id_ = map_id_to_rmap_id(goal_id);

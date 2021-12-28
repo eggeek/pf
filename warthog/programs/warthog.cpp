@@ -25,6 +25,7 @@
 #include "jps4c_expansion_policy.h"
 #include "jpsplus_expansion_policy.h"
 #include "rect_expansion_policy.h"
+#include "convrect_expansion_policy.h"
 #include "ll_expansion_policy.h"
 #include "manhattan_heuristic.h"
 #include "octile_heuristic.h"
@@ -274,6 +275,29 @@ run_rect(warthog::scenario_manager& scenmgr, std::string mapname, std::string al
     run_experiments(&astar, alg_name, scenmgr, 
             verbose, checkopt, std::cout);
 	std::cerr << "done. total memory: "<< astar.mem() + scenmgr.mem() << "\n";
+}
+
+void 
+run_convrect(warthog::scenario_manager& scenmgr, std::string mapname, std::string alg_name) {
+  warthog::timer t;
+  warthog::rectscan::ConvRectMap map(mapname.c_str());
+  t.start();
+	warthog::rectscan::convrect_expansion_policy expander(&map);
+  t.stop();
+  preproc_nano = t.elapsed_time_nano();
+	warthog::octile_heuristic heuristic(map.mapw, map.maph);
+  warthog::pqueue_min open;
+
+	warthog::flexible_astar<
+		warthog::octile_heuristic,
+	  warthog::rectscan::convrect_expansion_policy,
+    warthog::pqueue_min> 
+    astar(&heuristic, &expander, &open);
+
+    run_experiments(&astar, alg_name, scenmgr, 
+            verbose, checkopt, std::cout);
+	std::cerr << "done. total memory: "<< astar.mem() + scenmgr.mem() << "\n";
+
 }
 
 void
@@ -595,6 +619,10 @@ main(int argc, char** argv)
     else if (alg == "rect")
     {
       run_rect(scenmgr, mapname, alg);
+    }
+    else if (alg == "convrect")
+    {
+      run_convrect(scenmgr, mapname, alg);
     }
     else if(alg == "jps2")
     {

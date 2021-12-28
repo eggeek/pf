@@ -24,6 +24,16 @@ inline rdir E2R(const int& dx, const int& dy, const epos& ep) {
   return rs::E2R(dx, dy, ep);
 }
 
+inline char gen_id_label(int id) {
+  if (id == -1) return '@';
+  id %= 10 + 26 * 2;
+  if (id<10) return char('0' + id);
+  id -= 10;
+  if (id<26) return char('a' + id);
+  id -= 26;
+  return char('A' + id);
+}
+
 template<int dx, int dy, rdir rd>
 constexpr int lrdx() {
   if (dx) return 0;
@@ -227,6 +237,10 @@ public:
   void make_convrects_from_file(const string& mapfile);
 
 
+  inline void get_neighbours(uint32_t id, uint8_t tiles[3]) {
+    gmap->get_neighbours(gmap->to_padded_id(id), tiles);
+  }
+
   // return the mask horizontal, i.e. left,right
   inline int get_maskh(const int x, const int y) {
     int res = 3;
@@ -298,6 +312,7 @@ public:
   template<int dx, int dy>
   inline bool is_nxtmove_jp(int cx, int cy) {
     int cur_mask, nxt_mask;
+    if (!get_label(cx+dx, cy+dy)) return false;
     if (dx) {
       cur_mask = get_maskw(cx, cy);
       nxt_mask = get_maskw(cx+dx, cy+dy);
@@ -316,21 +331,11 @@ public:
     out << "width "<< mapw << std::endl;
     out << "map" << std::endl;
 
-    auto get_label = [&](int id) {
-      if (id == -1) return '@';
-      id %= 10 + 26 * 2;
-      if (id<10) return char('0' + id);
-      id -= 10;
-      if (id<26) return char('a' + id);
-      id -= 26;
-      return char('A' + id);
-    };
-
     for (int y=0; y<maph; y++)
     {
       for (int x=0; x<mapw; x++) {
         int pos = y * mapw + x;
-        char c = get_label(idmap[pos]);
+        char c = gen_id_label(idmap[pos]);
         out << c;
       }
       out << endl;

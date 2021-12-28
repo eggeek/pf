@@ -107,23 +107,36 @@ void cr::init_convrects(vector<cg::FinalConvexRect>& fr,
 
   for (int i=0; i<(int)fr.size(); i++) {
     ConvRect r = ConvRect(fr[i]);
+    assert(r.rid == i+1);
+    int lb[4] = {
+      r.get_lb(rectscan::N),
+      r.get_lb(rectscan::E),
+      r.get_lb(rectscan::S),
+      r.get_lb(rectscan::W),
+    };
+    int ub[4] = {
+      r.get_ub(rectscan::N),
+      r.get_ub(rectscan::E),
+      r.get_ub(rectscan::S),
+      r.get_ub(rectscan::W),
+    };
     // NORTH border
-    r.adj[0]  = calc_adj(idmap, mapw, maph, r.x, r.x+r.w-1, r.y-1, r.y-1);
+    r.adj[0]  = calc_adj(idmap, mapw, maph, lb[0], ub[0], r.y-1, r.y-1);
     r.jptf[0] = calc_jptx(mapw, maph, idmap, jpl, jps::EAST, r.rid, r.y, r.x, r.x+r.w-1);
     r.jptr[0] = calc_jptx(mapw, maph, idmap, jpl, jps::WEST, r.rid, r.y, r.x+r.w-1, r.x);
 
     // EAST border
-    r.adj[1]  = calc_adj(idmap, mapw, maph, r.x+r.w, r.x+r.w, r.y, r.y+r.h-1);
+    r.adj[1]  = calc_adj(idmap, mapw, maph, r.x+r.w, r.x+r.w, lb[1], ub[1]);
     r.jptf[1] = calc_jpty(mapw, maph, idmap, jpl, jps::SOUTH, r.rid, r.x+r.w-1, r.y, r.y+r.h-1);
     r.jptr[1] = calc_jpty(mapw, maph, idmap, jpl, jps::NORTH, r.rid, r.x+r.w-1, r.y+r.h-1, r.y);
 
     // SOUTH border
-    r.adj[2]  = calc_adj(idmap, mapw, maph, r.x, r.x+r.w-1, r.y+r.h, r.y+r.h);
+    r.adj[2]  = calc_adj(idmap, mapw, maph, lb[2], ub[2], r.y+r.h, r.y+r.h);
     r.jptf[2] = calc_jptx(mapw, maph, idmap, jpl, jps::EAST, r.rid, r.y+r.h-1, r.x, r.x+r.w-1);
     r.jptr[2] = calc_jptx(mapw, maph, idmap, jpl, jps::WEST, r.rid, r.y+r.h-1, r.x+r.w-1, r.x);
 
     // WEST border
-    r.adj[3]  = calc_adj(idmap, mapw, maph, r.x-1, r.x-1, r.y, r.y+r.h-1);
+    r.adj[3]  = calc_adj(idmap, mapw, maph, r.x-1, r.x-1, lb[3], ub[3]);
     r.jptf[3] = calc_jpty(mapw, maph, idmap, jpl, jps::SOUTH, r.rid, r.x, r.y, r.y+r.h-1);
     r.jptr[3] = calc_jpty(mapw, maph, idmap, jpl, jps::NORTH, r.rid, r.x, r.y+r.h-1, r.y);
 
@@ -138,8 +151,8 @@ void cr::init(const string& mapfile) {
   // generate convex rectangles from original map
   // if mapfile is:
   // 1. *.map, compute rectangles
-  // 2. *.rect, load from rect file (make_convrects_from_file)
-  // 3. *.rectid, load from idmap file (make_convrects_from_idmap)
+  // 2. *.convrect, load from rect file (make_convrects_from_file)
+  // 3. *.convrectid, load from idmap file (make_convrects_from_idmap)
 
   if (mapfile.back() == 'p') {
     make_convrects_from_map(mapfile);
@@ -255,8 +268,8 @@ void cr::make_convrects_from_idmap(const string& ridfile) {
   gridmap* m = create_gmap_from_idmap(rectids);
   locator* jpl = new locator(m);
   init_convrects(cg::finals, rectids, jpl);
-  delete m;
   delete jpl;
+  delete m;
 }
 
 void cr::init_jptr() {

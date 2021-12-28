@@ -53,7 +53,7 @@ class rect_jump_point_locator
       assert(intervals_v.empty());
       cur_node_id_ = node_id;
       map_->to_xy(cur_node_id_, _curx, _cury);
-      if (cur_goal_id_ != goal_id) {
+      if (goal_id != INF && cur_goal_id_ != goal_id) {
         cur_goal_id_ = goal_id;
         map_->to_xy(cur_goal_id_, _goalx, _goaly);
         _goal_rid = map_->get_rid(goal_id);
@@ -132,7 +132,7 @@ class rect_jump_point_locator
     int minarea = 128;
     int minstep = 32;
 		int cur_goal_id_;
-    uint32_t padded_goal_id;
+    uint32_t padded_goal_id = INF32;
 		int cur_node_id_;
     int _curx, _cury, _goalx, _goaly, _goal_rid;
     RectMap* map_;

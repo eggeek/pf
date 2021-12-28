@@ -201,10 +201,10 @@ class online_jump_point_locator2
 		warthog::gridmap* rmap_;
 		//uint32_t jumplimit_;
 
-		uint32_t current_goal_id_;
-		uint32_t current_rgoal_id_;
-		uint32_t current_node_id_;
-		uint32_t current_rnode_id_;
+		uint32_t current_goal_id_ = INF32;
+		uint32_t current_rgoal_id_ = INF32;
+		uint32_t current_node_id_ = INF32;
+		uint32_t current_rnode_id_ = INF32;
 
         // these function pointers allow us to switch between forward jumping
         // and backward jumping (i.e. with the parent direction reversed)

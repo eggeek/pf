@@ -19,6 +19,7 @@
 #include "helpers.h"
 
 #include <stdint.h>
+#include <string>
 #include <unordered_map>
 
 namespace warthog
@@ -66,6 +67,22 @@ compute_direction_4c(int32_t px, int32_t py, int32_t x, int32_t y)
         d = (delta_x < 0) ? warthog::jps::WEST : warthog::jps::EAST;
     }
     return d; 
+}
+
+inline std::string d2s(direction d) {
+  switch (d) {
+    case NORTH: return "NORTH";
+    case SOUTH: return "SOUTH";
+    case EAST : return "EAST";
+    case WEST : return "WEST";
+    case NORTHEAST: return "NORTHEAST";
+    case NORTHWEST: return "NORTHWEST";
+    case SOUTHEAST: return "SOUTHEAST";
+    case SOUTHWEST: return "SOUTHWEST";
+    case NONE: return "NONE";
+    default:
+               return "ALL";
+  }
 }
 
 constexpr inline direction v2d(const int& dx, const int& dy) {

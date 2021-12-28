@@ -1,3 +1,4 @@
+#include "scenario_manager.h"
 #define CATCH_CONFIG_RUNNER
 #include <cstdio>
 #include <string>
@@ -13,6 +14,7 @@
 #include "rect_jump_point_locator.h"
 #include "rect_expansion_policy.h"
 #include "convrect_jump_point_locator.h"
+#include "convrect_expansion_policy.h"
 #include "grid2convex_rect.h"
 #include "convex_rectmap.h"
 
@@ -443,6 +445,7 @@ TEST_CASE("gen-convrectid") {
     {"../maps/dao/lak105d.map", "./test/rectid/lak105d.convrectid"},
     {"../maps/dao/lak107d.map", "./test/rectid/lak107d.convrectid"},
     {"../maps/dao/lak108d.map", "./test/rectid/lak108d.convrectid"},
+    {"../maps/bgmaps/AR0042SR.map", "./test/rectid/AR0042SR.convrectid"}
   };
   if (infile.empty()) {
     for (auto& each: cases) {
@@ -568,6 +571,7 @@ void test_internalJump(string mfile) {
     warthog::jps2_expansion_policy,
     warthog::pqueue_min> jps2(&heur, &expander, &open);
 
+  int snum = 0;
   for (cv::ConvRect& r: convmap.rects) {
     vector<Point> nodes;
     for (int y=r.yl(); y<=r.yu(); y++)
@@ -591,6 +595,7 @@ void test_internalJump(string mfile) {
                << "t( " << v.x << ", " << v.y << " ) "
                << "dir: " << desc[i] << " i=" << i << endl;
           cjpl->reset();
+          cjpl->set_search_number(++snum);
           cjpl->jump(d, cid, gid, &r);
           if (cjpl->get_jpts().size() && (int)cjpl->get_jpts().back()==gid) {
             // path length must be exactly same if reach target via another starting direction
@@ -609,18 +614,19 @@ void test_internalJump(string mfile) {
   delete cjpl;
 }
 
-void test_cardinaljump(string mfile) {
-  cv::ConvRectMap convmap(mfile);
-  rs::RectMap rmap(mfile.c_str());
+void test_cardinaljump(string rfile, string cfile) {
+  cv::ConvRectMap convmap(cfile);
+  rs::RectMap rmap(rfile.c_str());
   rs::convrect_jump_point_locator* cjpl = new rs::convrect_jump_point_locator(&convmap);
   rs::rect_jump_point_locator* rjpl = new rs::rect_jump_point_locator(&rmap);
 
+  cjpl->verbose = verbose;
   int mapw = convmap.mapw, maph = convmap.maph;
   REQUIRE(convmap.equal(*rmap.gmap));
   REQUIRE(rmap.equal(*convmap.gmap));
 
   if (verbose) convmap.print(cout);
-
+  int snum = 0;
   direction ds[] = {NORTH, SOUTH, EAST, WEST}; 
   for (int y=0; y<maph; y++)
   for (int x=0; x<mapw; x++) 
@@ -632,6 +638,7 @@ void test_cardinaljump(string mfile) {
          << "dir: " << desc[i] << " i=" << i << endl;
     int cid = y*mapw+x;
     cjpl->reset();
+    cjpl->set_search_number(++snum);
     cjpl->jump(d, cid, rs::INF, convmap.get_rect(x, y));
     rjpl->reset();
     rjpl->jump(d, cid, rs::INF, rmap.get_rect(x, y));
@@ -766,6 +773,7 @@ void test_diagJump(string rfile, string crfile) {
 
   if (verbose) convmap.print(cout);
   direction ds[] = {NORTHEAST, NORTHWEST, SOUTHEAST, SOUTHWEST}; 
+  int snum = 0;
   for (int y=0; y<maph; y++)
   for (int x=0; x<mapw; x++)
   if (convmap.idmap[y*mapw+x] != -1)
@@ -775,6 +783,7 @@ void test_diagJump(string rfile, string crfile) {
          << "dir: " << desc[4+i] << " i=" << i << endl;
     int cid = y*mapw+x;
     cjpl->reset();
+    cjpl->set_search_number(++snum);
     cjpl->jump(d, cid, rs::INF, convmap.get_rect(x, y));
 
     jpts.clear();
@@ -791,6 +800,48 @@ void test_diagJump(string rfile, string crfile) {
   delete cjpl;
 }
 
+void test_query(string rfile, string crfile, string sfile) {
+  cv::ConvRectMap cmap(crfile);
+  rs::convrect_expansion_policy cexpd(&cmap);
+
+  RectMap rmap(rfile.c_str());
+  rs::rect_expansion_policy rexpd(&rmap);
+
+  warthog::octile_heuristic heur(cmap.mapw, cmap.maph);
+  warthog::pqueue_min open;
+  warthog::flexible_astar<
+    warthog::octile_heuristic,
+    rs::convrect_expansion_policy,
+    warthog::pqueue_min> conv(&heur, &cexpd, &open);
+
+  warthog::flexible_astar<
+    warthog::octile_heuristic,
+    rs::rect_expansion_policy,
+    warthog::pqueue_min> rect(&heur, &rexpd, &open);
+
+  warthog::scenario_manager* scenmgr = new warthog::scenario_manager();
+  scenmgr->load_scenario(sfile.c_str());
+
+  cexpd.get_jpl()->verbose = verbose;
+
+  int sx, sy, tx, ty;
+  for (int i=0; i<(int)scenmgr->num_experiments(); i++) {
+    warthog::experiment* exp = scenmgr->get_experiment(i);
+    uint32_t sid = exp->starty() * exp->mapwidth() + exp->startx();
+    uint32_t tid = exp->goaly() * exp->mapwidth() + exp->goalx();
+    cexpd.get_xy(sid, sx, sy);
+    cexpd.get_xy(tid, tx, ty);
+    cerr << "Query " << i << ": s(" << sx << ", " << sy 
+         << ") t(" << tx << ", " << ty << ")" << endl;
+    warthog::problem_instance pi(sid, tid, verbose);
+    warthog::solution solc, solr;
+    conv.get_path(pi, solc);
+    rect.get_path(pi, solr);
+    REQUIRE(abs(solc.sum_of_edge_costs_ - solr.sum_of_edge_costs_) <= EPS);
+  }
+  delete scenmgr;
+}
+
 
 TEST_CASE("internalJump") {
   vector<string> cases = {
@@ -805,6 +856,7 @@ TEST_CASE("internalJump") {
     "./test/rects/lak107d.convrect",
     "./test/rects/lak108d.convrect",
     "./test/rects/Cat0.convrect",
+    "./data/CatwalkAlley_1.convrectid"
   };
   for (string f: cases) {
     cerr << "Running map: " << f << endl;
@@ -813,16 +865,16 @@ TEST_CASE("internalJump") {
 }
 
 TEST_CASE("cardinalJump") {
-  vector<string> cases = {
-    "../maps/dao/arena.map",
-    "../maps/bgmaps/AR0042SR.map",
-    "../maps/starcraft/CatwalkAlley.map",
-    "../maps/starcraft/GreenerPastures.map",
-    "../maps/iron/scene_sp_endmaps.map"
+  vector<pair<string, string>> cases {
+    {"./data/arena_1.rectid", "./data/arena_1.convrectid"},
+    {"./test/rectid/AR0042SR.rectid", "./test/rectid/AR0042SR.convrectid"},
+    {"./data/CatwalkAlley_1.rectid", "./data/CatwalkAlley_1.convrectid"},
+    {"./data/GreenerPastures_1.rectid", "./data/GreenerPastures_1.convrectid"},
+    {"./data/scene_sp_endmaps_1.rectid", "./data/scene_sp_endmaps_1.convrectid"}
   };
-  for (string f: cases) {
-    cerr << "Running map: " << f << endl;
-    test_cardinaljump(f);
+  for (auto& it: cases) {
+    cerr << "Running map: " << it.first << endl;
+    test_cardinaljump(it.first, it.second);
   }
 }
 
@@ -835,10 +887,36 @@ TEST_CASE("diagJump") {
     {"../maps/dao/lak107d.map", "./test/rects/lak107d.convrect"},
     {"../maps/dao/lak108d.map", "./test/rects/lak108d.convrect"},
     {"./test/maps/Cat0.map", "./test/rects/Cat0.convrect"},
+    {"./data/CatwalkAlley_1.rectid", "./data/CatwalkAlley_1.convrectid"}
   };
   for (auto& c: cases) {
     cerr << "Running map: " << c.first << endl;
     test_diagJump(c.first, c.second);
+  }
+}
+
+TEST_CASE("query") {
+  vector<vector<string>> cases = {
+    {"./data/arena_1.rectid", "./data/arena_1.convrectid",
+      "../scenarios/movingai/dao/arena.map.scen"},
+    {"../maps/dao/arena.map", "./test/rects/arena.convrect",
+      "../scenarios/movingai/dao/arena.map.scen"},
+    {"../maps/dao/isound1.map", "./test/rects/isound1.convrect",
+      "../scenarios/movingai/dao/isound1.map.scen"},
+    {"../maps/dao/lak101d.map", "./test/rects/lak101d.convrect",
+     "../scenarios/movingai/dao/lak101d.map.scen"},
+    {"../maps/dao/lak105d.map", "./test/rects/lak105d.convrect",
+     "../scenarios/movingai/dao/lak105d.map.scen"},
+    {"../maps/dao/lak107d.map", "./test/rects/lak107d.convrect",
+     "../scenarios/movingai/dao/lak107d.map.scen"},
+    {"../maps/dao/lak108d.map", "./test/rects/lak108d.convrect",
+     "../scenarios/movingai/dao/lak108d.map.scen"},
+    {"./data/CatwalkAlley_1.rectid", "./data/CatwalkAlley_1.convrectid",
+    "./data/CatwalkAlley_1.map.scen"}
+  };
+  for (auto& c: cases) {
+    cerr << "Running map: " << c[0] << endl;
+    test_query(c[0], c[1], c[2]);
   }
 }
 
