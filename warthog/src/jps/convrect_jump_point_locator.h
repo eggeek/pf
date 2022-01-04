@@ -39,7 +39,7 @@ class convrect_jump_point_locator
     void jump(jps::direction d, int cid, int gid, ConvRect* rp) {
       int cx, cy;
       map_->to_xy(cid, cx, cy);
-      debug_start_jump(cx, cy, d);
+      // debug_start_jump(cx, cy, d);
       if (gid_ != gid) {
         gid_ = gid;
         map_->to_xy(gid_, _gx, _gy);
@@ -129,10 +129,10 @@ class convrect_jump_point_locator
       // base case: reach goal in cardinal direction
       // convex property gaurantees that goal is reachable now
       if (cx == _gx || cy == _gy) {
-        debug_found_jpoint_in_goal_rect(_gx, _gy, 
-            (double)((_gx-cx)*dx+(_gy-cy)*dy)+cur_cost);
+        // debug_found_jpoint_in_goal_rect(_gx, _gy,
+            // (double)((_gx-cx)*dx+(_gy-cy)*dy)+cur_cost);
         jpts_.push_back(gid_);
-        costs_.push_back((double)((_gx-cx)*dx+(_gy-cy)*dy)+cur_cost);
+        costs_.push_back((cost_t)((_gx-cx)*dx+(_gy-cy)*dy)+cur_cost);
         return true;
       }
       int bX, bY, bD; // is dx,dy,<dx,dy> blocked
@@ -150,14 +150,15 @@ class convrect_jump_point_locator
           cx += dx*bX*(int)_cstc.back();
           cy += dy*bY*(int)_cstc.back();
           cur_cost += _cstc.back();
+          // debug_found_internal_jpoint(cx, cy, cur_cost, jps::v2d(dx*bX, dy*bY));
         }
         else { // case 2 or 3: dead-end
           assert((!bD && (bX && bY)) || (!bX && !bY));
           break;
         }
         if (cx == _gx || cy == _gy) {
-          debug_found_jpoint_in_goal_rect(_gx, _gy, 
-            (double)((_gx-cx)*dx+(_gy-cy)*dy)+cur_cost);
+          // debug_found_jpoint_in_goal_rect(_gx, _gy,
+            // (double)((_gx-cx)*dx+(_gy-cy)*dy)+cur_cost);
           jpts_.push_back(gid_);
           costs_.push_back((double)((_gx-cx)*dx+(_gy-cy)*dy)+cur_cost);
           return true;
@@ -185,7 +186,7 @@ class convrect_jump_point_locator
         int cost = (_gy-cy)*dy;
         if (cost >= 0 && _gx == cx) {
 
-          debug_found_jpoint_in_goal_rect(_gx, _gy, (double)cost + cur_cost);
+          // debug_found_jpoint_in_goal_rect(_gx, _gy, (double)cost + cur_cost);
           jpts_.push_back(gid_);
           costs_.push_back((double)cost + cur_cost);
         }
@@ -210,7 +211,7 @@ class convrect_jump_point_locator
       if (lU == 1 && lB == 1) {
         int cost = (_gx-cx)*dx;
         if (cost >= 0 && _gy == cy) {
-          debug_found_jpoint_in_goal_rect(_gx, _gy, (double)cost + cur_cost);
+          // debug_found_jpoint_in_goal_rect(_gx, _gy, (double)cost + cur_cost);
           jpts_.push_back(gid_);
           costs_.push_back((double)cost+cur_cost);
         }
@@ -353,6 +354,7 @@ class convrect_jump_point_locator
           cx += bX*dx*(int)_cstc.back();
           cy += bY*dy*(int)_cstc.back();
           cur_cost += _cstc.back();
+          // debug_found_internal_jpoint(cx, cy, cur_cost, jps::v2d(dx*bX, dy*bY));
 
           if ((cy != rp->yl() && cy != rp->yu()) ||
               !_scanCardinalInRect<dx, 0>(rp, cx, cy, cur_cost))
@@ -508,7 +510,7 @@ class convrect_jump_point_locator
       int best = t+1;
       while (s<=t) {
         int m = (s+t)>>1;
-        map_->rects[(curr->adj[cure][m])-1].get_range(nxte, l, r);
+        map_->rects[(curr->adj[cure][m])-1].get_bounds(nxte, l, r);
         if (r < lb) s=m+1;
         else {
           best = m;
@@ -530,7 +532,7 @@ class convrect_jump_point_locator
       constexpr epos cure = convrectscan::R2E<dx, dy, rdir::F>();
       constexpr epos nxte = convrectscan::R2E<dx, dy, rdir::B>();
 
-      debug_push_intervalAdj(lb, ub, px, py, cur_cost, curr);
+      // debug_push_intervalAdj(lb, ub, px, py, cur_cost, curr);
       // int nxtx, nxty;
       int sidx = bsearch_adj_rect<cure, nxte>(curr, lb, ub);
       for (int i=sidx; i<(int)curr->adj[cure].size(); i++) {
@@ -568,7 +570,7 @@ class convrect_jump_point_locator
           continue;
         }
         if (rL <= rU) {
-          debug_push_interval(rL, rU, px, py, cur_cost, r);
+          // debug_push_interval(rL, rU, px, py, cur_cost, r);
           invs.push({rL, rU, px, py, cur_cost, r});
         }
       }
@@ -594,7 +596,7 @@ class convrect_jump_point_locator
        */
       while (!invs.empty()) {
         Interval c = invs.front(); invs.pop();
-        debug_pop_interval(c);
+        // debug_pop_interval(c);
         jps::scan_cnt++;
         cx = c.r->axis(cure);
         if (c.lb <= c.ub ) { // when lb==ylb, we need to explicitly check jump poin
@@ -639,7 +641,7 @@ class convrect_jump_point_locator
       cost_t curcost;
       while (!invs.empty()) {
         Interval c = invs.front(); invs.pop();
-        debug_pop_interval(c);
+        // debug_pop_interval(c);
         jps::scan_cnt++;
         cy = c.r->axis(cure);
         if (c.lb <= c.ub) { // when lb==yl, we need to explicitly check jump poin
@@ -735,6 +737,17 @@ class convrect_jump_point_locator
       return false;
     }
 
+    // template<int dx, int dy>
+    // inline bool _block_scan(int curx, int cury, cost_t cur_cost) {
+    //   constexpr jps::direction d = jps::v2d(dx, dy);
+    //   jpl->jump(d, map_->gmap->to_padded_id(curx, cury), padded_gid_, _jptc, _cstc);
+    //   for (size_t i=0; i<_jptc.size(); ++i) {
+    //     uint32_t x, y;
+    //     map_->gmap->to_padded_xy(_jptc[i], x, y);
+    //     add_jump_point(x, y, _cstc[i], d);
+    //   }
+    // }
+
     inline void add_jump_point(int x, int y, cost_t cost, jps::direction d) {
       int cid = map_->to_id(x, y);
       // there is a better jump point exists
@@ -742,7 +755,7 @@ class convrect_jump_point_locator
           dinfo[cid].gval <= cost + parent_g)
         return;
       dinfo[cid] = {d, cost+parent_g, search_number};
-      debug_found_jpoint(x, y, cost, d);
+      // debug_found_jpoint(x, y, cost, d);
       jpts_.push_back(cid);
       costs_.push_back(cost);
     }
@@ -779,6 +792,28 @@ class convrect_jump_point_locator
         int x, y;
         map_->to_xy(id, x, y);
         debug_found_jpoint(x, y, gval, d);
+      }
+    }
+
+    
+    inline void debug_found_internal_jpoint(int x, int y, cost_t gval, jps::direction d) {
+      if (verbose) {
+        cerr << "Found internal jump point at (" << x << ", " << y << ")"
+             << " id: " << map_->to_id(x, y) 
+             << " from dir: " << d2s(d)
+             << " cost:" << gval+parent_g
+             << " parent_g: " << parent_g
+             << " rid: " << map_->get_rid(x, y)
+             << "(" << gen_id_label(map_->get_rid(x, y)) << ")"
+             << endl;
+      }
+    }
+
+    inline void debug_found_internal_jpoint(int id, cost_t gval, jps::direction d) {
+      if (verbose) {
+        int x, y;
+        map_->to_xy(id, x, y);
+        debug_found_internal_jpoint(x, y, gval, d);
       }
     }
 

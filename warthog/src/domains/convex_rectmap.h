@@ -161,6 +161,11 @@ public:
 
   int get_ub(epos ep) { return ub[int(ep)]; }
 
+  void get_bounds(epos ep, int& lb, int& ub) {
+    lb = get_lb(ep);
+    ub = get_ub(ep);
+  }
+
   template<int dx, int dy>
   int cardinal_axis(int cx, int cy) {
     switch(dx) {

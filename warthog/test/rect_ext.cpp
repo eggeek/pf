@@ -760,6 +760,7 @@ void report(map<uint32_t, warthog::cost_t> p1, vector<uint32_t> cp, ConvRectMap&
 }
 
 void test_diagJump(string rfile, string crfile) {
+  // must turn off all "_block_scan" in convrect_jump_point_locator to make this work
   cv::ConvRectMap convmap(crfile);
   rs::convrect_jump_point_locator* cjpl = new rs::convrect_jump_point_locator(&convmap);
   rs::RectMap rmap(rfile.c_str());
@@ -912,7 +913,13 @@ TEST_CASE("query") {
     {"../maps/dao/lak108d.map", "./test/rects/lak108d.convrect",
      "../scenarios/movingai/dao/lak108d.map.scen"},
     {"./data/CatwalkAlley_1.rectid", "./data/CatwalkAlley_1.convrectid",
-    "./data/CatwalkAlley_1.map.scen"}
+    "./data/CatwalkAlley_1.map.scen"},
+    {"./data/CatwalkAlley_2.rectid", "./data/CatwalkAlley_2.convrectid",
+    "./data/CatwalkAlley_2.map.scen"},
+    {"./data/scene_sp_endmaps_2.rectid", "./data/scene_sp_endmaps_2.convrectid",
+    "./data/scene_sp_endmaps_2.map.scen"},
+    {"./data/scene_sp_endmaps_3.rectid", "./data/scene_sp_endmaps_3.convrectid",
+    "./data/scene_sp_endmaps_3.map.scen"},
   };
   for (auto& c: cases) {
     cerr << "Running map: " << c[0] << endl;
