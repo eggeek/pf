@@ -161,6 +161,8 @@ public:
 
   int get_ub(epos ep) { return ub[int(ep)]; }
 
+  int get_size() const { return h*w; }
+
   void get_bounds(epos ep, int& lb, int& ub) {
     lb = get_lb(ep);
     ub = get_ub(ep);

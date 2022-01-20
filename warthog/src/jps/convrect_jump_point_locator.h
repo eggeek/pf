@@ -18,6 +18,7 @@ using namespace convrectscan;
 class convrect_jump_point_locator 
 {
   public:
+    // int minarea = 32;
     convrect_jump_point_locator(ConvRectMap* map): map_(map) {
       jpts_.reserve(1<<7);
       costs_.reserve(1<<7);
@@ -40,7 +41,7 @@ class convrect_jump_point_locator
       int cx, cy;
       map_->to_xy(cid, cx, cy);
       // debug_start_jump(cx, cy, d);
-      if (gid_ != gid) {
+      if (gid != INF && gid_ != gid) {
         gid_ = gid;
         map_->to_xy(gid_, _gx, _gy);
         _goal_rid = map_->get_rid(_gx, _gy);
@@ -130,7 +131,7 @@ class convrect_jump_point_locator
       // convex property gaurantees that goal is reachable now
       if (cx == _gx || cy == _gy) {
         // debug_found_jpoint_in_goal_rect(_gx, _gy,
-            // (double)((_gx-cx)*dx+(_gy-cy)*dy)+cur_cost);
+        //     (double)((_gx-cx)*dx+(_gy-cy)*dy)+cur_cost);
         jpts_.push_back(gid_);
         costs_.push_back((cost_t)((_gx-cx)*dx+(_gy-cy)*dy)+cur_cost);
         return true;
@@ -599,7 +600,12 @@ class convrect_jump_point_locator
         // debug_pop_interval(c);
         jps::scan_cnt++;
         cx = c.r->axis(cure);
-        if (c.lb <= c.ub ) { // when lb==ylb, we need to explicitly check jump poin
+        // int d2F = c.r->disF(dx, 0, cx, c.lb);
+        // if (d2F * (c.ub-c.lb+1) <= minarea) {
+        //   interval_block_scan<dx, 0>(cx, c.lb, c.ub, c);
+        //   continue;
+        // }
+        if (c.lb <= c.ub) { // when lb==ylb, we need to explicitly check jump point
           int &cy = c.lb;
           curcost = c.pcost + octile_dist(c.px, c.py, cx, cy);
           if (cy == c.r->get_lb(cure) && _scanCardinalInRect<dx, 0>(c.r, cx, cy, curcost))
@@ -644,7 +650,12 @@ class convrect_jump_point_locator
         // debug_pop_interval(c);
         jps::scan_cnt++;
         cy = c.r->axis(cure);
-        if (c.lb <= c.ub) { // when lb==yl, we need to explicitly check jump poin
+        // int d2F = c.r->disF(0, dy, c.lb, cy);
+        // if (d2F * (c.ub-c.lb+1) <= minarea) {
+        //   interval_block_scan<0, dy>(cy, c.lb, c.ub, c);
+        //   continue;
+        // }
+        if (c.lb <= c.ub) { // when lb==xlb, we need to explicitly check jump point
           int &cx = c.lb;
           curcost = c.pcost + octile_dist(c.px, c.py, cx, cy);
           if (cx == c.r->get_lb(cure) && _scanCardinalInRect<0, dy>(c.r, cx, cy, curcost))
@@ -697,6 +708,10 @@ class convrect_jump_point_locator
         _internalJump(jps::v2d(dx, dy), rp, cur_cost, cx, cy);
         return true;
       }
+      // if (rp->get_size() <= minarea) {
+      //   block_scanning(jps::v2d(dx, dy), cx, cy, cur_cost);
+      //   return true;
+      // }
       // case 1 or case 2
       if (blockedLR<dx, dy>(cx, cy, rp)) {
         // try to find an internal jpoint
@@ -758,6 +773,42 @@ class convrect_jump_point_locator
       // debug_found_jpoint(x, y, cost, d);
       jpts_.push_back(cid);
       costs_.push_back(cost);
+    }
+
+    inline jps::direction compute_dir(int px, int py, int cx, int cy) {
+      int dx = abs(cx - px);
+      int dy = abs(cy - py);
+      if (dx > dy) {
+        return cx>px?jps::EAST: jps::WEST;
+      }
+      return cy>py?jps::SOUTH: jps::NORTH;
+    }
+
+    inline void block_scanning(jps::direction d, int cx, int cy, cost_t curg) {
+      uint32_t padded_cid = jpl->get_map()->to_padded_id(cx, cy);
+      size_t sidx = jpts_.size();
+      jpl->jump(d, padded_cid, padded_gid_, jpts_, costs_);
+      for (size_t i=sidx; i<jpts_.size(); i++) {
+        costs_[i] += curg;
+        jpts_[i] = jpl->get_map()->to_unpadded_id(jpts_[i]);
+        int x, y;
+        map_->to_xy(jpts_[i], x, y);
+        jps::direction d = compute_dir(cx, cy, x, y);
+        if (dinfo[jpts_[i]].snumber == search_number && 
+            dinfo[jpts_[i]].gval <= costs_[i]+parent_g) 
+          continue;
+        dinfo[jpts_[i]] = {d, parent_g+costs_[i], search_number};
+      }
+      return;
+    }
+
+    template<int dx, int dy>
+    inline void interval_block_scan(int ax, int lb, int ub, Interval& inv) {
+      cost_t curg;
+      for (int i=lb; i<=ub; i++) {
+        curg = inv.pcost + octile_dist(inv.px, inv.py, dx?ax: i, dx?i: ax);
+        block_scanning(jps::v2d(dx, dy), dx?ax: i, dx?i: ax, curg);
+      }
     }
 
     inline void debug_start_jump(int cx, int cy, jps::direction d) {
