@@ -13,7 +13,7 @@
 #include "solution.h"
 
 #include "getopt.h"
-#include "catch.hpp"
+#include <catch2/catch.hpp>
 
 #include <iomanip>
 #include <sstream>

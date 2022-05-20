@@ -18,7 +18,7 @@ D_LIBS = -L./lib -L/usr/local/lib
 warthog = ./lib/libwarthog.a
 extra = ./lib/libwarthog-extra.a
 
-CFLAGS = -std=c++11 -pedantic -pthread -Wall -Werror -Wno-conversion \
+CFLAGS = -std=c++14 -pedantic -pthread -Wall -Werror -Wno-conversion \
 	-Wno-unused-result -Wno-unused-but-set-variable -fopenmp -march=native
 # PROFILE_CFLAGS = $(DEV_CFLAGS) -pg -DNDEBUG
 

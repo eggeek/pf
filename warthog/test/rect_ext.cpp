@@ -1,11 +1,11 @@
-#include "scenario_manager.h"
 #define CATCH_CONFIG_RUNNER
+#include "scenario_manager.h"
 #include <cstdio>
 #include <string>
 #include <iostream>
 #include <fstream>
 
-#include "catch.hpp"
+#include <catch2/catch.hpp>
 #include "rectmap.h"
 #include "constants.h"
 #include "jps2_expansion_policy.h"
@@ -369,22 +369,6 @@ TEST_CASE("gen-ext-rect") {
     out << v.to_str() << endl;
 }
 
-void gen_rectid(string mapfile, string writeto) {
-  RectMap rmap(mapfile.c_str());
-  if (!writeto.empty()) {
-    ofstream out;
-    out.open(writeto.c_str());
-    rmap.print_idmap(out);
-    out.close();
-    RectMap newmap(writeto.c_str());
-    REQUIRE(newmap == rmap);
-    REQUIRE(newmap.equal(*(newmap.gmap)));
-  }
-  else {
-    rmap.print_idmap(cout);
-  }
-}
-
 void gen_convrectid(string mapfile, string writeto) {
   cr::verbose = verbose;
   cv::ConvRectMap crmap(mapfile.c_str());
@@ -419,33 +403,16 @@ void gen_convrect(string mapfile, string writeto) {
   }
 }
 
-TEST_CASE("gen-rectid") {
-  vector<pair<string, string>> cases = {
-    {"../maps/dao/arena.map", "./test/rectid/arena.rectid"},
-    {"../maps/rooms/64room_000.map", "./test/rectid/64room.rectid"},
-    {"../maps/bgmaps/AR0042SR.map", "./test/rectid/AR0042SR.rectid"},
-    {"../maps/street/Boston_2_256.map", "./test/rectid/Boston_2_256.rectid"}
-  };
-  if (infile.empty()) {
-    for (auto& each: cases) {
-      string mapfile = each.first;
-      string writeto = each.second;
-      gen_rectid(mapfile, writeto);
-    }
-  } else {
-    gen_rectid(infile, outfile);
-  }
-}
-
 TEST_CASE("gen-convrectid") {
   vector<pair<string, string>> cases = {
-    {"../maps/dao/arena.map", "./test/rectid/arena.convrectid"},
-    {"../maps/dao/isound1.map", "./test/rectid/isound1.convrectid"},
-    {"../maps/dao/lak101d.map", "./test/rectid/lak101d.convrectid"},
-    {"../maps/dao/lak105d.map", "./test/rectid/lak105d.convrectid"},
-    {"../maps/dao/lak107d.map", "./test/rectid/lak107d.convrectid"},
-    {"../maps/dao/lak108d.map", "./test/rectid/lak108d.convrectid"},
-    {"../maps/bgmaps/AR0042SR.map", "./test/rectid/AR0042SR.convrectid"}
+    {"./test/maps/Cat0.map", "./test/rects/Cat0.convrect"},
+    // {"../maps/dao/arena.map", "./test/rectid/arena.convrectid"},
+    // {"../maps/dao/isound1.map", "./test/rectid/isound1.convrectid"},
+    // {"../maps/dao/lak101d.map", "./test/rectid/lak101d.convrectid"},
+    // {"../maps/dao/lak105d.map", "./test/rectid/lak105d.convrectid"},
+    // {"../maps/dao/lak107d.map", "./test/rectid/lak107d.convrectid"},
+    // {"../maps/dao/lak108d.map", "./test/rectid/lak108d.convrectid"},
+    // {"../maps/bgmaps/AR0042SR.map", "./test/rectid/AR0042SR.convrectid"}
   };
   if (infile.empty()) {
     for (auto& each: cases) {
@@ -461,12 +428,12 @@ TEST_CASE("gen-convrectid") {
 
 TEST_CASE("gen-convrect") {
   vector<pair<string, string>> cases = {
-    {"../maps/dao/arena.map", "./test/rects/arena.convrect"},
-    {"../maps/dao/isound1.map", "./test/rects/isound1.convrect"},
-    {"../maps/dao/lak101d.map", "./test/rects/lak101d.convrect"},
-    {"../maps/dao/lak105d.map", "./test/rects/lak105d.convrect"},
-    {"../maps/dao/lak107d.map", "./test/rects/lak107d.convrect"},
-    {"../maps/dao/lak108d.map", "./test/rects/lak108d.convrect"},
+    // {"../maps/dao/arena.map", "./test/rects/arena.convrect"},
+    // {"../maps/dao/isound1.map", "./test/rects/isound1.convrect"},
+    // {"../maps/dao/lak101d.map", "./test/rects/lak101d.convrect"},
+    // {"../maps/dao/lak105d.map", "./test/rects/lak105d.convrect"},
+    // {"../maps/dao/lak107d.map", "./test/rects/lak107d.convrect"},
+    // {"../maps/dao/lak108d.map", "./test/rects/lak108d.convrect"},
     {"./test/maps/Cat0.map", "./test/rects/Cat0.convrect"},
   };
   if (infile.empty()) {
@@ -483,9 +450,11 @@ TEST_CASE("gen-convrect") {
 
 TEST_CASE("gen-rectlist") {
   vector<string> maps = {
-    "./test/rectid/CatwalkAlley_1.rectid",
-    "./test/rectid/scene_sp_endmaps_1.rectid",
-    "./test/rectid/GreenerPastures_1.rectid"
+    "./test/rectid/Cat0.rectid"
+    // "./test/rectid/arena_1.rectid",
+    // "./test/rectid/CatwalkAlley_1.rectid",
+    // "./test/rectid/scene_sp_endmaps_1.rectid",
+    // "./test/rectid/GreenerPastures_1.rectid"
   };
   string headers="map,maph,mapw,x,y,h,w,traversable";
   cout << headers << endl;
@@ -493,6 +462,33 @@ TEST_CASE("gen-rectlist") {
     RectMap rmap(m.c_str());
     assert(rmap.equal(*(rmap.gmap)));
     for (Rect r: rmap.rects) {
+      cout << m.c_str() << "," << rmap.maph << ","
+           << rmap.mapw << "," << r.x << "," << r.y << ","
+           << r.h << "," << r.w << "," << true << endl;
+    }
+    for (int y=0; y<rmap.maph; y++)
+    for (int x=0; x<rmap.mapw; x++) if (rmap.idmap[y*rmap.mapw+x] == -1) {
+      cout << m.c_str() << "," << rmap.maph << ","
+           << rmap.mapw << "," << x << "," << y << ","
+           << 1 << "," << 1 << "," << false << endl;
+    }
+  }
+}
+
+
+TEST_CASE("gen-convrectlist") {
+  vector<string> maps = {
+    "./test/rectid/Cat0.convrectid"
+    // "./data/CatwalkAlley_1.convrectid",
+    // "./data/scene_sp_endmaps_1.convrectid",
+    // "./data/GreenerPastures_1.convrectid"
+  };
+  string headers="map,maph,mapw,x,y,h,w,traversable";
+  cout << headers << endl;
+  for (string& m: maps) {
+    cv::ConvRectMap rmap(m.c_str());
+    assert(rmap.equal(*(rmap.gmap)));
+    for (ConvRect r: rmap.rects) {
       cout << m.c_str() << "," << rmap.maph << ","
            << rmap.mapw << "," << r.x << "," << r.y << ","
            << r.h << "," << r.w << "," << true << endl;
@@ -926,7 +922,6 @@ TEST_CASE("query") {
     test_query(c[0], c[1], c[2]);
   }
 }
-
 
 int main(int argv, char* args[]) {
   using namespace Catch::clara;

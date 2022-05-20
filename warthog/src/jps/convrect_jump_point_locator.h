@@ -444,6 +444,7 @@ class convrect_jump_point_locator
       search_number = snumber;
     }
     inline void set_parent_gvalue(cost_t g) { parent_g = g; } 
+    inline void update_map(Rect r, bool f) { assert(false); }
 
   private:
     int gid_ = -1;

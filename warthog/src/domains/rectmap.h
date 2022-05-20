@@ -207,6 +207,12 @@ class Rect {
   vector<int> jptf[4];  // jump points in "forward" direction (top-down, left-right)
   vector<int> jptr[4];  // jump points in "reverse" direction (down-top, right-left)
 
+  Rect() {};
+
+  Rect(int id, int x_, int y_, int lh, int lw) {
+    rid = id, x = x_, y = y_, h = lh, w = lw;
+  }
+
   // ~Rect() {
   //   for (int i=0; i<4; i++) {
   //     adj[i].clear();
@@ -369,6 +375,7 @@ class RectMap {
   void init(int mapw_, int maph_, const vector<int>& rectids);
   void make_rectangles_from_file(const char* mapfile);
   void make_rectangles_from_idmap(const char* mapfile);
+  void update_map(Rect r, bool traversable);
 
   inline const char* filename() { return this->_filename.c_str();}
 
@@ -489,7 +496,10 @@ class RectMap {
 
   string _filename;
 
+  void init_rect(Rect& r);
   void init_rects(); 
+  void update_to_empty(Rect r);
+  void update_to_obstacle(Rect r);
 };
 
 }}

@@ -3,7 +3,7 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "catch.hpp"
+#include <catch2/catch.hpp>
 #include "constants.h"
 #include "jps.h"
 #include "octile_heuristic.h"

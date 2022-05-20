@@ -1,10 +1,11 @@
+#include <cstdlib>
 #define CATCH_CONFIG_RUNNER
 
 #include <fstream>
 #include <string>
 #include <utility>
 #include <vector>
-#include "catch.hpp"
+#include <catch2/catch.hpp>
 #include "constants.h"
 #include "gridmap.h"
 #include "jps.h"
@@ -19,18 +20,55 @@
 
 using namespace warthog::rectscan;
 using namespace std;
+string infile, outfile;
 bool Verbose = false;
 const vector<string> desc = {
   "NORTH", "SOUTH", "EAST", "WEST",
   "NORTHEAST", "NORTHWEST", "SOUTHEAST", "SOUTHWEST"
 };
 
+void gen_rectid(string mapfile, string writeto) {
+  RectMap rmap(mapfile.c_str());
+  if (!writeto.empty()) {
+    ofstream out;
+    out.open(writeto.c_str());
+    rmap.print_idmap(out);
+    out.close();
+    RectMap newmap(writeto.c_str());
+    REQUIRE(newmap == rmap);
+    REQUIRE(newmap.equal(*(newmap.gmap)));
+  }
+  else {
+    rmap.print_idmap(cout);
+  }
+}
+
+TEST_CASE("gen-rectid") {
+  vector<pair<string, string>> cases = {
+    // {"../maps/dao/arena.map", "./test/rectid/arena.rectid"},
+    // {"../maps/rooms/64room_000.map", "./test/rectid/64room.rectid"},
+    // {"../maps/bgmaps/AR0042SR.map", "./test/rectid/AR0042SR.rectid"},
+    // {"../maps/street/Boston_2_256.map", "./test/rectid/Boston_2_256.rectid"},
+    {"./test/maps/Cat0.map", "./test/rects/Cat0.rectid"},
+  };
+  if (infile.empty()) {
+    for (auto& each: cases) {
+      string mapfile = each.first;
+      string writeto = each.second;
+      gen_rectid(mapfile, writeto);
+    }
+  } else {
+    gen_rectid(infile, outfile);
+  }
+}
+
 TEST_CASE("gen-rect") {
   vector<pair<string, string>> cases = {
-    {"../maps/dao/arena.map", "./test/rects/arena.rect"},
-    {"../maps/bgmaps/AR0042SR.map", "./test/rects/AR0042SR.rect"},
-    {"../maps/starcraft/CatwalkAlley.map", "./test/rects/CatwalkAlley.rect"},
-    {"../maps/street/Boston_2_256.map", "./test/rects/Boston_2_256.rect"}
+    // {"../maps/dao/arena.map", "./test/rects/arena.rect"},
+    // {"../maps/bgmaps/AR0042SR.map", "./test/rects/AR0042SR.rect"},
+    // {"../maps/starcraft/CatwalkAlley.map", "./test/rects/CatwalkAlley.rect"},
+    // {"../maps/street/Boston_2_256.map", "./test/rects/Boston_2_256.rect"},
+    {"./test/maps/Cat0.map", "./test/rects/Cat0.rect"},
   };
   RectMap rectmap;
   for (auto& each: cases) {
@@ -42,6 +80,64 @@ TEST_CASE("gen-rect") {
     rectmap.print(out);
     cout << "#rects: " << rectmap.rects.size() << endl;
     out.close();
+  }
+}
+
+TEST_CASE("gen-hard") {
+  vector<pair<string, string>> cases = {
+    {"./data/CatwalkAlley_1.map", "./data/CatwalkAlley_1.map.scen"},
+    {"./data/CatwalkAlley_2.map", "./data/CatwalkAlley_2.map.scen"},
+    {"./data/CatwalkAlley_3.map", "./data/CatwalkAlley_3.map.scen"},
+    {"./data/CatwalkAlley_4.map", "./data/CatwalkAlley_4.map.scen"},
+    {"./data/CatwalkAlley_5.map", "./data/CatwalkAlley_5.map.scen"},
+    {"./data/CatwalkAlley_6.map", "./data/CatwalkAlley_6.map.scen"},
+    {"./data/CatwalkAlley_7.map", "./data/CatwalkAlley_7.map.scen"},
+    {"./data/CatwalkAlley_8.map", "./data/CatwalkAlley_8.map.scen"},
+  };
+  // 0: top-left, 1: top-right, 2: bot-right, 3: bot-left
+  int xlb[4], ylb[4], bx, by, num = 1000;
+  double r = 0.1;
+  vector<int> sx, sy, tx, ty;
+  for (auto& each: cases) {
+    string mfile = each.first;
+    string ofile = each.second;
+
+    warthog::gridmap gmap(mfile.c_str());
+    srand(0);
+
+    bx = (int)(gmap.header_width() * r);
+    by = (int)(gmap.header_height() * r);
+    xlb[0] = xlb[3] = 0;
+    xlb[1] = xlb[2] = (int)(gmap.header_width() * (1-r));
+    ylb[0] = ylb[1] = 0;
+    ylb[2] = ylb[3] = (int)(gmap.header_height() * (1-r));
+    sx.resize(num); sy.resize(num);
+    tx.resize(num); ty.resize(num);
+    for (int i=0; i<num; i++) {
+      int p, q;
+      q = rand() % 4;
+      while (true) {
+        p = rand() % 4;
+        if (p != q) break;
+      }
+      while (true) {
+        sx[i] = xlb[p] + rand() % bx;
+        sy[i] = ylb[p] + rand() % by;
+        if (gmap.get_label(gmap.to_padded_id(sx[i], sy[i]))) break;
+      }
+      while (true) {
+        tx[i] = xlb[q] + rand() % bx;
+        ty[i] = ylb[q] + rand() % by;
+        if (gmap.get_label(gmap.to_padded_id(tx[i], ty[i]))) break;
+      }
+    }
+    ofstream out(ofile);
+    out << "version 1" << endl;
+    for (int i=0; i< num; i++) {
+      out << "1000 " << mfile << " " << gmap.header_width() << " "
+          << gmap.header_height() << " " << sx[i] << " " << sy[i] << " "
+          << tx[i] << " " << ty[i] << " 0" << endl;
+    }
   }
 }
 
@@ -384,7 +480,9 @@ TEST_CASE("query") {
 int main(int argv, char* args[]) {
   using namespace Catch::clara;
   Catch::Session session;
-  auto cli = Opt( Verbose )["-v"]["--verbose"]("verbose") | session.cli();
+  auto cli = Opt( Verbose )["-v"]["--verbose"]("verbose") |
+             Opt( infile, "testfile")["--in"]("") |
+             Opt( outfile, "outfile")["--out"]("") | session.cli();
   session.cli(cli);
   int resCode = session.applyCommandLine(argv, args);
   if (resCode != 0)

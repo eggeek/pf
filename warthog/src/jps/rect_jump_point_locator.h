@@ -126,6 +126,11 @@ class rect_jump_point_locator
     void set_minarea(int v) {minarea = v;}
     void set_minstep(int v) {minstep = v;}
 
+    inline void update_map(Rect r, bool f) {
+      map_->update_map(r, f);
+      jpl->update_map(r.x, r.x+r.w-1, r.y, r.y+r.h-1, f);
+    }
+
     jps::online_jump_point_locator2* get_jpl() { return jpl; }
 
   private:

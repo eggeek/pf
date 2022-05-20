@@ -67,6 +67,12 @@ class online_jump_point_locator2
     int _block_rayscan_east(gridmap* gmap, uint32_t node_id);
     int _block_rayscan_west(gridmap* gmap, uint32_t node_id);
 
+    inline void update_map(int xl, int xu, int yl, int yu, bool f) {
+      for (int x=xl; x<=xu; x++)
+      for (int y=yl; y<=yu; y++)
+        set_label(x, y, f);
+    }
+
 	private:
 		void
 		jump_north(

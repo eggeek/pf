@@ -186,25 +186,7 @@ void rmap::make_rectangles_from_idmap(const char* ridfile) {
   }
 }
 
-  
-void rmap::init_rects() {
-
-  const vector<rectgen::FinalRect>& frects = rectgen::final_rectangles;
-  rects.resize(frects.size());
-
-  idmap.resize(maph * mapw);
-
-  // idmap stores the rect id of each traversable tile
-  // so that we can compute the neighbor rects of each edge
-  fill(idmap.begin(), idmap.end(), -1);
-  for (int i=0; i<(int)frects.size(); i++) {
-    for (int x=frects[i].x; x<frects[i].x + frects[i].width; x++) {
-      for (int y=frects[i].y; y<frects[i].y + frects[i].height; y++) {
-        idmap[y * mapw + x] = i;
-      }
-    }
-  }
-
+void rmap::init_rect(Rect& r) {
   auto calc_adj = [&](
       int xl, int xr, int yl, int yr) {
       
@@ -257,6 +239,46 @@ void rmap::init_rects() {
     return res;
   };
 
+  for (int j=0; j<4; j++) {
+    r.adj[j].clear();
+    r.jptf[j].clear();
+    r.jptr[j].clear();
+  }
+  r.adj[0]  = calc_adj(r.x, r.x+r.w-1, r.y-1, r.y-1);
+  r.jptf[0] = calc_jptsf(r.x, r.x+r.w-1, r.y-1, r.y-1, 0, -1);
+  r.jptr[0] = calc_jptsr(r.x, r.x+r.w-1, r.y-1, r.y-1, 0, -1);
+
+  r.adj[1]  = calc_adj(r.x+r.w, r.x+r.w, r.y, r.y+r.h-1);
+  r.jptf[1] = calc_jptsf(r.x+r.w, r.x+r.w, r.y, r.y+r.h-1, 1, 0);
+  r.jptr[1] = calc_jptsr(r.x+r.w, r.x+r.w, r.y, r.y+r.h-1, 1, 0);
+
+  r.adj[2]  = calc_adj(r.x, r.x+r.w-1, r.y+r.h, r.y+r.h);
+  r.jptf[2] = calc_jptsf(r.x, r.x+r.w-1, r.y+r.h, r.y+r.h, 0, 1);
+  r.jptr[2] = calc_jptsr(r.x, r.x+r.w-1, r.y+r.h, r.y+r.h, 0, 1);
+
+  r.adj[3]  = calc_adj(r.x-1, r.x-1, r.y, r.y+r.h-1);
+  r.jptf[3] = calc_jptsf(r.x-1, r.x-1, r.y, r.y+r.h-1, -1, 0);
+  r.jptr[3] = calc_jptsr(r.x-1, r.x-1, r.y, r.y+r.h-1, -1, 0);
+}
+  
+void rmap::init_rects() {
+
+  const vector<rectgen::FinalRect>& frects = rectgen::final_rectangles;
+  rects.resize(frects.size());
+
+  idmap.resize(maph * mapw);
+
+  // idmap stores the rect id of each traversable tile
+  // so that we can compute the neighbor rects of each edge
+  fill(idmap.begin(), idmap.end(), -1);
+  for (int i=0; i<(int)frects.size(); i++) {
+    for (int x=frects[i].x; x<frects[i].x + frects[i].width; x++) {
+      for (int y=frects[i].y; y<frects[i].y + frects[i].height; y++) {
+        idmap[y * mapw + x] = i;
+      }
+    }
+  }
+
   for (int i=0; i<(int)rects.size(); i++) {
     Rect& r = rects[i];
     rectgen::FinalRect fr = rectgen::final_rectangles[i];
@@ -265,31 +287,81 @@ void rmap::init_rects() {
     r.y = fr.y;
     r.h = fr.height;
     r.w = fr.width;
-
-    // r.mark[(int)eposition::N] = vector<int>(r.w, -1);
-    // r.mark[(int)eposition::S] = vector<int>(r.w, -1);
-    // r.mark[(int)eposition::W] = vector<int>(r.h, -1);
-    // r.mark[(int)eposition::E] = vector<int>(r.h, -1);
-    //
-    for (int j=0; j<4; j++) {
-      r.adj[j].clear();
-      r.jptf[j].clear();
-      r.jptr[j].clear();
-    }
-    r.adj[0]  = calc_adj(r.x, r.x+r.w-1, r.y-1, r.y-1);
-    r.jptf[0] = calc_jptsf(r.x, r.x+r.w-1, r.y-1, r.y-1, 0, -1);
-    r.jptr[0] = calc_jptsr(r.x, r.x+r.w-1, r.y-1, r.y-1, 0, -1);
-
-    r.adj[1]  = calc_adj(r.x+r.w, r.x+r.w, r.y, r.y+r.h-1);
-    r.jptf[1] = calc_jptsf(r.x+r.w, r.x+r.w, r.y, r.y+r.h-1, 1, 0);
-    r.jptr[1] = calc_jptsr(r.x+r.w, r.x+r.w, r.y, r.y+r.h-1, 1, 0);
-
-    r.adj[2]  = calc_adj(r.x, r.x+r.w-1, r.y+r.h, r.y+r.h);
-    r.jptf[2] = calc_jptsf(r.x, r.x+r.w-1, r.y+r.h, r.y+r.h, 0, 1);
-    r.jptr[2] = calc_jptsr(r.x, r.x+r.w-1, r.y+r.h, r.y+r.h, 0, 1);
-
-    r.adj[3]  = calc_adj(r.x-1, r.x-1, r.y, r.y+r.h-1);
-    r.jptf[3] = calc_jptsf(r.x-1, r.x-1, r.y, r.y+r.h-1, -1, 0);
-    r.jptr[3] = calc_jptsr(r.x-1, r.x-1, r.y, r.y+r.h-1, -1, 0);
+    init_rect(r);
   }
+}
+
+void rmap::update_to_empty(Rect r) {
+  rects.push_back(r); // add new rect
+  for (int x=r.x; x<r.x+r.w; x++)
+  for (int y=r.y; y<r.y+r.h; y++) {
+    // sanity checking: all tiles in r must be nontraversable now
+    assert(idmap[y*mapw+x] == -1);
+    // update idmap
+    idmap[y*mapw+x] = rects.size()-1;
+  }
+  init_rect(rects.back());
+}
+
+void rmap::update_to_obstacle(Rect r) {
+  set<int> ids;
+  int cntr = rects.size();
+  for (int x=r.x; x<r.x+r.w; x++)
+  for (int y=r.y; y<r.y+r.h; y++) {
+    // sanity checking: all tiles in r must be traversable now
+    assert(idmap[y*mapw+x] != -1);
+    ids.insert(idmap[y*mapw+x]);
+  }
+  vector<Rect> newr;
+  newr.reserve(ids.size()<<2);
+  for (int id: ids) {
+    Rect c = rects[id];
+    int xl = c.x, xu = c.x+c.w-1, yl=c.y, yu=c.y+c.h-1;
+    int sid = newr.size();
+    if (xl < r.x) { // [xl, r.x-1] * [yl, yu]
+      newr.push_back(Rect(cntr++, xl, yl, yu-yl+1, r.x-xl));
+      xl = r.x;
+    }
+    if (xu > r.x+r.w-1) { // [r.x+r.w, xu] * [yl, yu]
+      newr.push_back(Rect(cntr++, r.x+r.w, yl, yu-yl+1, xu-(r.x+r.w)+1));
+      xu = r.x+r.w-1;
+    }
+    if (yl < r.y) { // [xl, xu] * [yl, r.y-1]
+      newr.push_back(Rect(cntr++, xl, yl, r.y-yl, xu-xl+1));
+      yl = r.y;
+    }
+    if (yu > r.y+r.h-1) { // [xl, xu] * [r.y+r.h, yu]
+      newr.push_back(Rect(cntr++, xl, r.y+r.h, yu-(r.y+r.h)+1, xu-xl+1));
+      yu = r.y+r.h-1;
+    }
+    // update idmap and gridmap
+    for (int x=xl; x<=xu; x++)
+    for (int y=yl; y<=yu; y++) {
+      // before rewrite idmap, all tiles must marked by id
+      assert(idmap[y*mapw+x] == id);
+      // rewrite them to -1 (obstacle)
+      idmap[y*mapw+x] = -1;
+      gmap->set_label(gmap->to_padded_id(y*mapw+x), false);
+    }
+    for (int i=sid; i<(int)newr.size(); i++) {
+      Rect& nr = newr[i];
+      for (int x=nr.x; x<nr.x+nr.w; x++)
+      for (int y=nr.y; y<nr.y+nr.h; y++) {
+        // before rewrite, it must be the original rect
+        assert(idmap[y*mapw+x] == id);
+        // rewrite to the new rect
+        idmap[y*mapw+x] = nr.rid;
+        gmap->set_label(gmap->to_padded_id(y*mapw+x), true);
+      }
+    }
+  }
+  // add new to rect collection
+  rects.insert(rects.end(), newr.begin(), newr.end());
+}
+
+void rmap::update_map(Rect r, bool f) {
+  // mark all tiles in r from nontraversable to traversable
+  if (f) update_to_empty(r);
+  // mark all tiles in r from traversable to nontraversable
+  else update_to_obstacle(r); 
 }
