@@ -5,6 +5,7 @@ WARTHOG_EXE = $(wildcard programs/*.cpp)
 WARTHOG_TEST = $(wildcard test/*.cpp)
 WARTHOG_OBJ = $(WARTHOG_SRC:%.cpp=obj/%.o)
 EXTRA_OBJ = $(EXTRA_SRC:%.cpp=obj/%.o)
+CXX = clang++
 
 D_WARTHOG_INCLUDES = -I../../src/ -I../../src/domains -I../../src/util			\
 	-I../../src/search -I../../src/experimental -I../../src/heuristics				\

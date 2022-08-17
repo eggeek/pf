@@ -181,8 +181,7 @@ class cuckoo_table
 		contains(unsigned int value)
 		{
 			return 
-				f_[h1(value)].contains(value) |
-			   	s_[h2(value)].contains(value);
+				f_[h1(value)].contains(value) || s_[h2(value)].contains(value);
 		}
 
 		// @return load factor for the table
