@@ -38,6 +38,10 @@ class expansion_policy
             //nodepool_->eclaim();
         }        
 
+        inline mem::node_pool* get_nodepool() {
+          return nodepool_;
+        }
+
 		inline void
 		reset()
 		{

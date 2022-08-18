@@ -84,11 +84,15 @@ fast: CFLAGS += -O3 -DNDEBUG -Wno-unused-variable
 fast: build/fast/Makefile		## Compile with opti flags
 	+$(MAKE) -C $(<D) $(ACTIONS)
 
-dev: CFLAGS += -ggdb -O0 -gdwarf-4 -no-pie -DSINGLE_THREADED -DQUICK_LOG=1
+fastcnt: CFLAGS += -O3 -Darwin -Wno-unused-variable $(FAST_CFLAGS) -DCNT $(D_INCLUDES)
+fastcnt: build/fast/Makefile		## Compile with opti flags
+	+$(MAKE) -C $(<D) $(ACTIONS)
+
+dev: CFLAGS += -ggdb -O0 -gdwarf-4 -DSINGLE_THREADED -DQUICK_LOG=1
 dev: build/dev/Makefile			## Compile with debug symbols
 	+$(MAKE) -C $(<D) $(ACTIONS)
 
-debug: CFLAGS += -ggdb -O3 -gdwarf-4 -no-pie -DQUICK_LOG=3 -fno-omit-frame-pointer
+debug: CFLAGS += -ggdb -O3 -gdwarf-4 -DQUICK_LOG=3 -fno-omit-frame-pointer
 debug: build/debug/Makefile		## Opti flags with debug symbols
 	+$(MAKE) -C $(<D) $(ACTIONS)
 

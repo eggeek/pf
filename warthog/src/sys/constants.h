@@ -35,14 +35,15 @@ namespace warthog
 	static const double DBL_ONE_OVER_TWO = 0.5;
 	static const double DBL_ONE_OVER_ROOT_TWO = 1.0/DBL_ROOT_TWO;//0.707106781f;
 	static const double DBL_ROOT_TWO_OVER_FOUR = DBL_ROOT_TWO*0.25;
-    static const int32_t ONE = 100000;
+  static const int32_t ONE = 100000;
 
-    static const uint32_t INF32 = UINT32_MAX; // indicates uninitialised or undefined values 
-    static const uint64_t INFTY = UINT64_MAX; // indicates uninitialised or undefined values 
+  static const uint32_t INF32 = UINT32_MAX; // indicates uninitialised or undefined values 
+  static const uint64_t INFTY = UINT64_MAX; // indicates uninitialised or undefined values 
+  static const int MAXSIDE = INF32;
 
-    typedef double cost_t;
-    static const cost_t COST_MAX = DBL_MAX; 
-    static const cost_t COST_MIN = DBL_MIN;
+  typedef double cost_t;
+  static const cost_t COST_MAX = DBL_MAX; 
+  static const cost_t COST_MIN = DBL_MIN;
 
 	// hashing constants
 	static const uint32_t FNV32_offset_basis = 2166136261;

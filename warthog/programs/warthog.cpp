@@ -7,49 +7,40 @@
 // @created: 2016-11-23
 //
 
-#include "cbs.h"
-#include "cbs_ll_expansion_policy.h"
-#include "cbs_ll_heuristic.h"
 #include "cfg.h"
 #include "constants.h"
-#include "depth_first_search.h"
 #include "flexible_astar.h"
-#include "four_connected_jps_locator.h"
-#include "greedy_depth_first_search.h"
 #include "gridmap.h"
 #include "gridmap_expansion_policy.h"
 #include "jps_expansion_policy.h"
 #include "jps2_expansion_policy.h"
-#include "jps2plus_expansion_policy.h"
-#include "jps4c_expansion_policy.h"
-#include "jpsplus_expansion_policy.h"
-#include "ll_expansion_policy.h"
-#include "manhattan_heuristic.h"
+#include "jps2_expansion_policy_prune2.h"
 #include "octile_heuristic.h"
 #include "scenario_manager.h"
 #include "timer.h"
-#include "labelled_gridmap.h"
-#include "sipp_expansion_policy.h"
-#include "vl_gridmap_expansion_policy.h"
+#include "nodemap.h"
 #include "zero_heuristic.h"
 
 #include "getopt.h"
+#include "global.h"
 
 #include <fstream>
 #include <functional>
 #include <iomanip>
+#include <iostream>
 #include <sstream>
+#include <string>
 #include <unordered_map>
 #include <memory>
 
-#include "time_constraints.h"
-
+namespace G = global;
 // check computed solutions are optimal
 int checkopt = 0;
 // print debugging info during search
 int verbose = 0;
 // display program help on startup
 int print_help = 0;
+long long tot = 0;
 
 void
 help()
@@ -113,9 +104,11 @@ run_experiments(warthog::search* algo, std::string alg_name,
         warthog::scenario_manager& scenmgr, bool verbose, bool checkopt,
         std::ostream& out)
 {
-	std::cout 
-        << "id\talg\texpanded\tinserted\tupdated\ttouched\tsurplus"
-        << "\tnanos\tpcost\tplen\tmap\n";
+	/* std::cout  */
+  /*       << "id\talg\texpanded\tinserted\tupdated\ttouched\tsurplus" */
+  /*       << "\tnanos\tpcost\tplen\tmap\n"; */
+	std::cout << "id\talg\texpd\tgend\ttouched\ttime\tcost\tscnt\tsfile\n";
+  tot = 0;
 	for(unsigned int i=0; i < scenmgr.num_experiments(); i++)
 	{
 		warthog::experiment* exp = scenmgr.get_experiment(i);
@@ -124,7 +117,7 @@ run_experiments(warthog::search* algo, std::string alg_name,
 		uint32_t goalid = exp->goaly() * exp->mapwidth() + exp->goalx();
         warthog::problem_instance pi(startid, goalid, verbose);
         warthog::solution sol;
-
+        G::statis::clear();
         algo->get_path(pi, sol);
 
 		out
@@ -132,58 +125,18 @@ run_experiments(warthog::search* algo, std::string alg_name,
             << alg_name << "\t" 
             << sol.nodes_expanded_ << "\t" 
             << sol.nodes_inserted_ << "\t"
-            << sol.nodes_updated_ << "\t"
             << sol.nodes_touched_ << "\t"
-            << sol.nodes_surplus_ << "\t"
             << sol.time_elapsed_nano_ << "\t"
             << sol.sum_of_edge_costs_ << "\t" 
-            << (sol.path_.size()-1) << "\t" 
+            << G::statis::scan_cnt << "\t"
             << scenmgr.last_file_loaded() 
             << std::endl;
 
+    tot += G::statis::scan_cnt;
         if(checkopt) { check_optimality(sol, exp); }
 	}
 }
 
-
-void
-run_jpsplus(warthog::scenario_manager& scenmgr, std::string mapname, std::string alg_name)
-{
-    warthog::gridmap map(mapname.c_str());
-	warthog::jpsplus_expansion_policy expander(&map);
-	warthog::octile_heuristic heuristic(map.width(), map.height());
-    warthog::pqueue_min open;
-
-	warthog::flexible_astar<
-		warthog::octile_heuristic,
-	   	warthog::jpsplus_expansion_policy,
-        warthog::pqueue_min> 
-            astar(&heuristic, &expander, &open);
-
-    run_experiments(&astar, alg_name, scenmgr, 
-            verbose, checkopt, std::cout);
-
-	std::cerr << "done. total memory: "<< astar.mem() + scenmgr.mem() << "\n";
-}
-
-void
-run_jps2plus(warthog::scenario_manager& scenmgr, std::string mapname, std::string alg_name)
-{
-    warthog::gridmap map(mapname.c_str());
-	warthog::jps2plus_expansion_policy expander(&map);
-	warthog::octile_heuristic heuristic(map.width(), map.height());
-    warthog::pqueue_min open;
-
-	warthog::flexible_astar<
-		warthog::octile_heuristic,
-	   	warthog::jps2plus_expansion_policy,
-        warthog::pqueue_min> astar(&heuristic, &expander, &open);
-
-    run_experiments(&astar, alg_name, scenmgr, 
-            verbose, checkopt, std::cout);
-
-	std::cerr << "done. total memory: "<< astar.mem() + scenmgr.mem() << "\n";
-}
 
 void
 run_jps2(warthog::scenario_manager& scenmgr, std::string mapname, std::string alg_name)
@@ -199,9 +152,31 @@ run_jps2(warthog::scenario_manager& scenmgr, std::string mapname, std::string al
         warthog::pqueue_min> 
             astar(&heuristic, &expander, &open);
 
+    G::nodepool = expander.get_nodepool();
     run_experiments(&astar, alg_name, scenmgr, 
             verbose, checkopt, std::cout);
-	std::cerr << "done. total memory: "<< astar.mem() + scenmgr.mem() << "\n";
+	std::cerr << "done. total memory: "<< astar.mem() + scenmgr.mem() 
+            << ", tot scan: " << tot << "\n";
+}
+void
+run_jps2_prune2(warthog::scenario_manager& scenmgr, std::string mapname, std::string alg_name)
+{
+  warthog::gridmap map(mapname.c_str());
+	warthog::jps2_expansion_policy_prune2 expander(&map);
+	warthog::octile_heuristic heuristic(map.width(), map.height());
+  warthog::pqueue_min open;
+
+	warthog::flexible_astar<
+	  warthog::octile_heuristic,
+	  warthog::jps2_expansion_policy_prune2,
+    warthog::pqueue_min> astar(&heuristic, &expander, &open);
+  long long tot = 0;
+
+  G::query::map = &map;
+  G::query::open = &open;
+  G::nodepool = expander.get_nodepool();
+  run_experiments(&astar, alg_name, scenmgr, verbose, checkopt, std::cout);
+  std::cerr << "done. total memory: "<< astar.mem() + scenmgr.mem() << ", tot scan: " << tot << "\n";
 }
 
 void
@@ -215,25 +190,6 @@ run_jps(warthog::scenario_manager& scenmgr, std::string mapname, std::string alg
 	warthog::flexible_astar<
 		warthog::octile_heuristic,
 	   	warthog::jps_expansion_policy,
-        warthog::pqueue_min> 
-            astar(&heuristic, &expander, &open);
-
-    run_experiments(&astar, alg_name, scenmgr, 
-            verbose, checkopt, std::cout);
-	std::cerr << "done. total memory: "<< astar.mem() + scenmgr.mem() << "\n";
-}
-
-void
-run_jps4c(warthog::scenario_manager& scenmgr, std::string mapname, std::string alg_name)
-{
-    warthog::gridmap map(mapname.c_str());
-	warthog::jps4c_expansion_policy expander(&map);
-	warthog::manhattan_heuristic heuristic(map.width(), map.height());
-    warthog::pqueue_min open;
-
-	warthog::flexible_astar<
-		warthog::manhattan_heuristic,
-	   	warthog::jps4c_expansion_policy,
         warthog::pqueue_min> 
             astar(&heuristic, &expander, &open);
 
@@ -262,119 +218,6 @@ run_astar(warthog::scenario_manager& scenmgr, std::string mapname, std::string a
 }
 
 void
-run_astar4c(warthog::scenario_manager& scenmgr, std::string mapname, std::string alg_name)
-{
-    warthog::gridmap map(mapname.c_str());
-	warthog::gridmap_expansion_policy expander(&map, true);
-	warthog::manhattan_heuristic heuristic(map.width(), map.height());
-    warthog::pqueue_min open;
-
-	warthog::flexible_astar<
-		warthog::manhattan_heuristic,
-	   	warthog::gridmap_expansion_policy, 
-        warthog::pqueue_min> 
-            astar(&heuristic, &expander, &open);
-
-    run_experiments(&astar, alg_name, scenmgr, 
-            verbose, checkopt, std::cout);
-	std::cerr << "done. total memory: "<< astar.mem() + scenmgr.mem() << "\n";
-}
-
-void
-run_sipp(warthog::scenario_manager& scenmgr, std::string mapname, std::string alg_name)
-{
-    warthog::gridmap gm(mapname.c_str());
-	warthog::manhattan_heuristic heuristic(gm.header_width(), gm.header_height());
-    warthog::sipp_gridmap sipp_map(&gm);
-	warthog::sipp_expansion_policy expander(&sipp_map);
-    warthog::pqueue_min open;
-
-	warthog::flexible_astar<
-		warthog::manhattan_heuristic,
-	   	warthog::sipp_expansion_policy,
-        warthog::pqueue_min> astar(&heuristic, &expander, &open);
-
-    run_experiments(&astar, alg_name, scenmgr, 
-            verbose, checkopt, std::cout);
-	std::cerr << "done. total memory: "<< astar.mem() + scenmgr.mem() << "\n";
-}
-
-void
-run_cbs_ll(warthog::scenario_manager& scenmgr, std::string mapname, std::string alg_name)
-{
-    warthog::gridmap gm(mapname.c_str());
-	warthog::cbs_ll_heuristic heuristic(&gm);
-	warthog::cbs_ll_expansion_policy expander(&gm, &heuristic);
-
-    // the reservation table is just here as an example
-    // for single agent search, or prioritised/rule planning, we 
-    // don't need it. only for decomposition-based algos like CBS
-    warthog::reservation_table restab(gm.width()*gm.height());
-    warthog::cbs::cmp_cbs_ll_lessthan lessthan(&restab);
-    warthog::cbs::pqueue_cbs_ll open(&lessthan);
-
-	warthog::flexible_astar<
-		warthog::cbs_ll_heuristic,
-	   	warthog::cbs_ll_expansion_policy,
-        warthog::cbs::pqueue_cbs_ll>
-            astar(&heuristic, &expander, &open);
-
-	std::cout 
-        << "id\talg\texpanded\tinserted\tupdated\ttouched"
-        << "\tnanos\tpcost\tplen\tmap\n";
-	for(unsigned int i=0; i < scenmgr.num_experiments(); i++)
-	{
-		warthog::experiment* exp = scenmgr.get_experiment(i);
-
-		uint32_t startid = exp->starty() * exp->mapwidth() + exp->startx();
-		uint32_t goalid = exp->goaly() * exp->mapwidth() + exp->goalx();
-        warthog::problem_instance pi(startid, goalid, verbose);
-        warthog::solution sol;
-
-        // solve and print results
-        astar.get_path(pi, sol);
-		std::cout
-            << i<<"\t" 
-            << alg_name << "\t" 
-            << sol.nodes_expanded_ << "\t" 
-            << sol.nodes_inserted_ << "\t"
-            << sol.nodes_updated_ << "\t"
-            << sol.nodes_touched_ << "\t"
-            << sol.time_elapsed_nano_ << "\t"
-            << sol.sum_of_edge_costs_ << "\t" 
-            << (sol.path_.size()-1) << "\t" 
-            << scenmgr.last_file_loaded() 
-            << std::endl;
-	}
-	std::cerr << "done. total memory: "<< astar.mem() + scenmgr.mem() + restab.mem() << "\n";
-}
-
-// cbs low-level with variable edge costs
-// (each action still takes one timestep, regardless of cost)
-void
-run_cbs_ll_w(warthog::scenario_manager& scenmgr, std::string mapname, std::string alg_name)
-{
-    warthog::gridmap gm(mapname.c_str());
-	warthog::cbs_ll_heuristic heuristic(&gm);
-	warthog::ll_expansion_policy expander(&gm, &heuristic);
-
-    warthog::reservation_table restab(gm.width()*gm.height());
-    warthog::cbs::cmp_cbs_ll_lessthan lessthan(&restab);
-    warthog::cbs::pqueue_cbs_ll open(&lessthan);
-
-	warthog::flexible_astar<
-		warthog::cbs_ll_heuristic,
-	   	warthog::ll_expansion_policy,
-        warthog::cbs::pqueue_cbs_ll>
-            astar(&heuristic, &expander, &open);
-
-    run_experiments(&astar, alg_name, scenmgr, 
-            verbose, checkopt, std::cout);
-	std::cerr << "done. total memory: "<< astar.mem() + scenmgr.mem() << "\n";
-
-}
-
-void
 run_dijkstra(warthog::scenario_manager& scenmgr, std::string mapname, std::string alg_name)
 {
     warthog::gridmap map(mapname.c_str());
@@ -391,106 +234,6 @@ run_dijkstra(warthog::scenario_manager& scenmgr, std::string mapname, std::strin
     run_experiments(&astar, alg_name, scenmgr, 
             verbose, checkopt, std::cout);
 	std::cerr << "done. total memory: "<< astar.mem() + scenmgr.mem() << "\n";
-}
-
-void
-run_wgm_astar(warthog::scenario_manager& scenmgr, std::string mapname, std::string alg_name)
-{
-    warthog::vl_gridmap map(mapname.c_str());
-	warthog::vl_gridmap_expansion_policy expander(&map);
-	warthog::octile_heuristic heuristic(map.width(), map.height());
-    warthog::pqueue_min open;
-    
-    // cheapest terrain (movingai benchmarks) has ascii value '.'; we scale
-    // all heuristic values accordingly (otherwise the heuristic doesn't 
-    // impact f-values much and search starts to behave like dijkstra)
-    heuristic.set_hscale('.');
-
-	warthog::flexible_astar<
-		warthog::octile_heuristic,
-	   	warthog::vl_gridmap_expansion_policy,
-        warthog::pqueue_min> 
-            astar(&heuristic, &expander, &open);
-
-    run_experiments(&astar, alg_name, scenmgr, 
-            verbose, checkopt, std::cout);
-	std::cerr << "done. total memory: "<< astar.mem() + scenmgr.mem() << "\n";
-}
-
-void
-run_wgm_sssp(warthog::scenario_manager& scenmgr, std::string mapname, std::string alg_name)
-{
-    warthog::vl_gridmap map(mapname.c_str());
-	warthog::vl_gridmap_expansion_policy expander(&map);
-	warthog::zero_heuristic heuristic;
-    warthog::pqueue_min open;
-
-	warthog::flexible_astar<
-		warthog::zero_heuristic,
-	   	warthog::vl_gridmap_expansion_policy,
-        warthog::pqueue_min> 
-            astar(&heuristic, &expander, &open);
-
-    run_experiments(&astar, alg_name, scenmgr, 
-            verbose, checkopt, std::cout);
-	std::cerr << "done. total memory: "<< astar.mem() + scenmgr.mem() << "\n";
-}
-
-void
-run_sssp(warthog::scenario_manager& scenmgr, std::string mapname, std::string alg_name)
-{
-    warthog::gridmap map(mapname.c_str());
-	warthog::gridmap_expansion_policy expander(&map);
-	warthog::zero_heuristic heuristic;
-    warthog::pqueue_min open;
-
-	warthog::flexible_astar<
-		warthog::zero_heuristic,
-	   	warthog::gridmap_expansion_policy, 
-        warthog::pqueue_min> 
-            astar(&heuristic, &expander, &open);
-
-    run_experiments(&astar, alg_name, scenmgr, 
-            verbose, checkopt, std::cout);
-	std::cerr << "done. total memory: "<< astar.mem() + scenmgr.mem() << "\n";
-}
-
-void
-run_dfs(warthog::scenario_manager& scenmgr, std::string mapname, std::string alg_name)
-{
-    warthog::gridmap map(mapname.c_str());
-	warthog::gridmap_expansion_policy expander(&map);
-	warthog::zero_heuristic heuristic;
-    warthog::pqueue_min open;
-
-    warthog::depth_first_search<
-        warthog::zero_heuristic, 
-        warthog::gridmap_expansion_policy, 
-        warthog::pqueue_min> 
-            alg(&heuristic, &expander, &open);
-
-    run_experiments(&alg, alg_name, scenmgr, 
-            verbose, checkopt, std::cout);
-	std::cerr << "done. total memory: "<< alg.mem() + scenmgr.mem() << "\n";
-}
-
-void
-run_gdfs(warthog::scenario_manager& scenmgr, std::string mapname, std::string alg_name)
-{
-    warthog::gridmap map(mapname.c_str());
-	warthog::gridmap_expansion_policy expander(&map);
-	warthog::octile_heuristic heuristic(map.width(), map.height());
-    warthog::pqueue_min open;
-
-    warthog::greedy_depth_first_search<
-        warthog::octile_heuristic, 
-        warthog::gridmap_expansion_policy, 
-        warthog::pqueue_min> 
-            alg(&heuristic, &expander, &open);
-
-    run_experiments(&alg, alg_name, scenmgr, 
-            verbose, checkopt, std::cout);
-	std::cerr << "done. total memory: "<< alg.mem() + scenmgr.mem() << "\n";
 }
 
 int 
@@ -552,32 +295,18 @@ main(int argc, char** argv)
     // the map filename can be given or (default) taken from the scenario file
     if(mapname == "")
     { mapname = scenmgr.get_experiment(0)->map().c_str(); }
-
-
-    if(alg == "jps+")
-    {
-        run_jpsplus(scenmgr, mapname, alg);
-    }
-
     else if(alg == "jps2")
     {
         run_jps2(scenmgr, mapname, alg);
     }
-
-    else if(alg == "jps2+")
+    else if (alg == "jps2-prune2")
     {
-        run_jps2plus(scenmgr, mapname, alg);
+      run_jps2_prune2(scenmgr, mapname, alg);
     }
-
     else if(alg == "jps")
     {
         run_jps(scenmgr, mapname, alg);
     }
-    else if(alg == "jps4c")
-    {
-        run_jps4c(scenmgr, mapname, alg);
-    }
-
     else if(alg == "dijkstra")
     {
         run_dijkstra(scenmgr, mapname, alg); 
@@ -586,46 +315,6 @@ main(int argc, char** argv)
     else if(alg == "astar")
     {
         run_astar(scenmgr, mapname, alg); 
-    }
-    else if(alg == "astar4c")
-    {
-        run_astar4c(scenmgr, mapname, alg); 
-    }
-
-    else if(alg == "cbs_ll")
-    {
-        run_cbs_ll(scenmgr, mapname, alg); 
-    }
-    else if(alg == "cbs_ll_w")
-    {
-        run_cbs_ll_w(scenmgr, mapname, alg); 
-    }
-    else if(alg == "sipp")
-    {
-        run_sipp(scenmgr, mapname, alg);
-    }
-
-    else if(alg == "astar_wgm")
-    {
-        run_wgm_astar(scenmgr, mapname, alg); 
-    }
-
-    else if(alg == "sssp")
-    {
-        run_sssp(scenmgr, mapname, alg);
-    }
-
-    else if(alg == "sssp")
-    {
-        run_wgm_sssp(scenmgr, mapname, alg); 
-    }
-    else if(alg == "dfs")
-    {
-        run_dfs(scenmgr, mapname, alg); 
-    }
-    else if(alg == "gdfs")
-    {
-        run_gdfs(scenmgr, mapname, alg); 
     }
     else
     {

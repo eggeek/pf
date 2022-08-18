@@ -24,6 +24,7 @@
 #include "search_node.h"
 #include "solution.h"
 #include "timer.h"
+#include "global.h"
 
 #include <functional>
 #include <iostream>
@@ -212,30 +213,33 @@ class flexible_astar: public warthog::search
 			warthog::search_node* start;
 			warthog::search_node* target = 0;
 
-            // get the internal target id
-            if(pi_.target_id_ != warthog::SN_ID_MAX)
-            {
-                warthog::search_node* target =
-                    expander_->generate_target_node(&pi_);
-                if(!target) { return 0; } // invalid target location
-                pi_.target_id_ = target->get_id();
+      // get the internal target id
+      if(pi_.target_id_ != warthog::SN_ID_MAX)
+      {
+          warthog::search_node* target =
+              expander_->generate_target_node(&pi_);
+          if(!target) { return 0; } // invalid target location
+          pi_.target_id_ = target->get_id();
 
-            }
+      }
 
-            // initialise and push the start node
-            if(pi_.start_id_ == warthog::SN_ID_MAX) { return 0; }
-            start = expander_->generate_start_node(&pi_);
-            assert(start->get_search_number() != pi_.instance_id_);
-            if(!start) { return 0; } // invalid start location
-            pi_.start_id_ = start->get_id();
+      // initialise and push the start node
+      if(pi_.start_id_ == warthog::SN_ID_MAX) { return 0; }
+      start = expander_->generate_start_node(&pi_);
+      assert(start->get_search_number() != pi_.instance_id_);
+      if(!start) { return 0; } // invalid start location
+      pi_.start_id_ = start->get_id();
 
 			start->init(pi_.instance_id_, warthog::SN_ID_MAX,
                     0, heuristic_->h(pi_.start_id_, pi_.target_id_));
+      global::query::pi = &pi_;
+      global::query::startid = pi_.start_id_;
+      global::query::goalid = pi_.target_id_;
 
 			open_->push(start);
-            sol.nodes_inserted_++;
+      sol.nodes_inserted_++;
 
-            listener_->generate_node(0, start, 0, UINT32_MAX);
+      listener_->generate_node(0, start, 0, UINT32_MAX);
 
 			#ifndef NDEBUG
 			if(pi_.verbose_) { pi_.print(std::cerr); std:: cerr << "\n";}
