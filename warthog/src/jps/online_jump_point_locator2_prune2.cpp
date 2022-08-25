@@ -257,7 +257,9 @@ jlp::__jump_east(uint32_t node_id,
 
   uint32_t& num_steps = jp->jump_step;
 	num_steps = jumpnode_id - node_id;
+#ifdef CNT
   S::scan_cnt += (num_steps >> 5) ;
+#endif
 	uint32_t goal_dist = goal_id - node_id;
 	if(num_steps > goal_dist)
 	{
@@ -346,7 +348,9 @@ jlp::__jump_west(uint32_t node_id,
   uint32_t& num_steps = jp->jump_step;
 	num_steps = node_id - jumpnode_id;
 	uint32_t goal_dist = node_id - goal_id;
+#ifdef CNT
   S::scan_cnt += (num_steps >> 5);
+#endif
 	if(num_steps > goal_dist)
 	{
     num_steps = goal_dist;
@@ -495,7 +499,9 @@ jlp::__jump_northeast(
 		}
 
 	}
+#ifdef CNT
   S::scan_cnt += num_steps;
+#endif
 	jumpnode_id = node_id;
 	jumpcost = num_steps*warthog::DBL_ROOT_TWO;
 }
@@ -625,7 +631,9 @@ jlp::__jump_northwest(
 		if(!(cost1 && cost2)) { node_id = jp_id1 = jp_id2 = warthog::INF32; break; 
 		}
 	}
+#ifdef CNT
   S::scan_cnt += num_steps;
+#endif
 	jumpnode_id = node_id;
 	jumpcost = num_steps*warthog::DBL_ROOT_TWO;
 }
@@ -754,7 +762,9 @@ jlp::__jump_southeast(
 		if(!(cost1 && cost2)) { node_id = jp_id1 = jp_id2 = warthog::INF32; break; 
 		}
 	}
+#ifdef CNT
   S::scan_cnt += num_steps;
+#endif
 	jumpnode_id = node_id;
 	jumpcost = num_steps*warthog::DBL_ROOT_TWO;
 }

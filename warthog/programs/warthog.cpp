@@ -152,6 +152,7 @@ run_jps2(warthog::scenario_manager& scenmgr, std::string mapname, std::string al
         warthog::pqueue_min> 
             astar(&heuristic, &expander, &open);
 
+    tot = 0;
     G::nodepool = expander.get_nodepool();
     run_experiments(&astar, alg_name, scenmgr, 
             verbose, checkopt, std::cout);
@@ -170,8 +171,8 @@ run_jps2_prune2(warthog::scenario_manager& scenmgr, std::string mapname, std::st
 	  warthog::octile_heuristic,
 	  warthog::jps2_expansion_policy_prune2,
     warthog::pqueue_min> astar(&heuristic, &expander, &open);
-  long long tot = 0;
 
+  tot = 0;
   G::query::map = &map;
   G::query::open = &open;
   G::nodepool = expander.get_nodepool();

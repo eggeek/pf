@@ -88,7 +88,7 @@ fastcnt: CFLAGS += -O3 -Darwin -Wno-unused-variable $(FAST_CFLAGS) -DCNT $(D_INC
 fastcnt: build/fast/Makefile		## Compile with opti flags
 	+$(MAKE) -C $(<D) $(ACTIONS)
 
-dev: CFLAGS += -ggdb -O0 -gdwarf-4 -DSINGLE_THREADED -DQUICK_LOG=1
+dev: CFLAGS += -ggdb -O0 -gdwarf-4 -DSINGLE_THREADED -DQUICK_LOG=1 -DCNT
 dev: build/dev/Makefile			## Compile with debug symbols
 	+$(MAKE) -C $(<D) $(ACTIONS)
 

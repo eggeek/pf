@@ -52,7 +52,7 @@ struct Constraint2 {
     }
     else {
       // case 2: ti-1 >= d-ti
-      static const int delta = DBL_ROOT_TWO - 1;
+      static const cost_t delta = DBL_ROOT_TWO - 1;
       ti = ceil(gb - ga + delta * d) / (delta*2);
       ti = max(ti, (d+2)/2);
     }
