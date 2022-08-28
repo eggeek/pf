@@ -117,7 +117,7 @@ extern warthog::pqueue_min* open;
 
   inline warthog::cost_t gval(uint32_t id) {
     warthog::cost_t res = warthog::INFTY;
-    warthog::search_node* s = nodepool->generate(id);
+    warthog::search_node* s = nodepool->get_ptr(id);
     if (s != nullptr && s->get_search_number() == pi->instance_id_) 
       res = min(res, s->get_g());
     return res;

@@ -53,7 +53,7 @@ struct Constraint2 {
     else {
       // case 2: ti-1 >= d-ti
       static const cost_t delta = DBL_ROOT_TWO - 1;
-      ti = ceil(gb - ga + delta * d) / (delta*2);
+      ti = ceil((gb - ga + delta * d) / (delta*2));
       ti = max(ti, (d+2)/2);
     }
   }
@@ -76,7 +76,7 @@ struct Constraint2 {
     // next diag move:
     // 1. passed the intersection;
     // 2. cardinal move until the jump limit is better reached from a;
-    if (i == d || i == L) {
+    if (i >= d || i >= L) {
       deactivate();
       return true;
     }
