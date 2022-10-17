@@ -694,7 +694,7 @@ version 1
 0	maps/local/CSC2F.map	88	86	68	22	32	66	74.7279
 0	maps/local/CSC2F.map	88	86	8	27	17	80	74.7279
 0	maps/local/CSC2F.map	88	86	13	31	75	4	74.9411
-0	maps/local/CSC2F.map	88	86	14	21	46	61	72.9706
+0	maps/local/CSC2F.map	88	86	14	21	46	61	74.9706
 0	maps/local/CSC2F.map	88	86	58	21	24	62	75.1421
 0	maps/local/CSC2F.map	88	86	67	37	10	24	75.2132
 0	maps/local/CSC2F.map	88	86	18	31	78	4	75.2843
@@ -901,7 +901,7 @@ version 1
 0	maps/local/CSC2F.map	88	86	12	16	80	46	96.3848
 0	maps/local/CSC2F.map	88	86	84	14	80	42	96.4853
 0	maps/local/CSC2F.map	88	86	30	48	79	57	96.6274
-0	maps/local/CSC2F.map	88	86	22	43	76	42	95.6274
+0	maps/local/CSC2F.map	88	86	22	43	76	42	96.7990
 0	maps/local/CSC2F.map	88	86	84	74	2	54	96.8701
 0	maps/local/CSC2F.map	88	86	80	18	20	55	97.1421
 0	maps/local/CSC2F.map	88	86	66	24	73	72	97.2426
@@ -911,7 +911,7 @@ version 1
 0	maps/local/CSC2F.map	88	86	78	24	61	73	97.6569
 0	maps/local/CSC2F.map	88	86	25	65	84	23	97.7279
 0	maps/local/CSC2F.map	88	86	81	61	46	13	97.7279
-0	maps/local/CSC2F.map	88	86	21	43	77	42	97.0416
+0	maps/local/CSC2F.map	88	86	21	43	77	42	98.2132
 0	maps/local/CSC2F.map	88	86	75	19	15	58	98.2132
 0	maps/local/CSC2F.map	88	86	34	29	69	84	98.5269
 0	maps/local/CSC2F.map	88	86	14	33	70	9	98.5269
@@ -925,7 +925,7 @@ version 1
 0	maps/local/CSC2F.map	88	86	55	27	4	81	99.1838
 0	maps/local/CSC2F.map	88	86	23	58	74	1	99.2132
 0	maps/local/CSC2F.map	88	86	20	28	78	83	99.5269
-0	maps/local/CSC2F.map	88	86	27	43	78	42	97.2132
+0	maps/local/CSC2F.map	88	86	27	43	78	42	99.5563
 0	maps/local/CSC2F.map	88	86	56	24	2	73	99.7696
 0	maps/local/CSC2F.map	88	86	79	15	79	46	99.8284
 0	maps/local/CSC2F.map	88	86	23	42	83	39	99.9706
