@@ -88,11 +88,11 @@ warthog::mem::node_pool::get_ptr(sn_id_t node_id)
 	sn_id_t list_id = node_id &  warthog::mem::node_pool_ns::NBS_MASK;
 
     // id outside the pool address range 
-	if(block_id > num_blocks_) { return 0; }
+	if(block_id > num_blocks_) { return nullptr; }
 
 	if(!blocks_[block_id])
     {
-        return 0;
+        return nullptr;
     }
     return &(blocks_[block_id][list_id]);
 }

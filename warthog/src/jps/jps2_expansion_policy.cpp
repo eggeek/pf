@@ -1,4 +1,6 @@
 #include "jps2_expansion_policy.h"
+#include "global.h"
+namespace G = global;
 
 warthog::jps2_expansion_policy::jps2_expansion_policy(warthog::gridmap* map)
     : expansion_policy(map->height() * map->width())
@@ -20,6 +22,11 @@ warthog::jps2_expansion_policy::expand(
     reset();
     jp_ids_.clear();
     jp_costs_.clear();
+
+#ifdef CNT
+    G::statis::update_subopt_expd(current->get_id(), current->get_g());
+    G::statis::update_pruneable(current);
+#endif
 
 	// compute the direction of travel used to reach the current node.
     // TODO: store this value with the jump point location so we don't need
@@ -55,10 +62,13 @@ warthog::jps2_expansion_policy::expand(
 		// bits 0-23 store the id of the jump point
 		// bits 24-31 store the direction to the parent
 		uint32_t jp_id = jp_ids_.at(i);
-        warthog::cost_t jp_cost = jp_costs_.at(i);
-
+    warthog::cost_t jp_cost = jp_costs_.at(i);
 		warthog::search_node* mynode = generate(jp_id);
 		add_neighbour(mynode, jp_cost);
+#ifdef CNT
+    G::statis::update_subopt_touch(mynode->get_id(), current->get_g()+jp_cost);
+    G::statis::sanity_checking(mynode->get_id(), current->get_g()+jp_cost);
+#endif
 	}
 }
 

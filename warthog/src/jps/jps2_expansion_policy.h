@@ -49,6 +49,18 @@ class jps2_expansion_policy : public expansion_policy
         virtual warthog::search_node*
         generate_target_node(warthog::problem_instance* pi);
 
+        // set loc to be empty(empty=true) or blocked(empty=false)
+        inline void perturbation(sn_id_t loc, bool empty) {
+          warthog::gridmap* mapptr = jpl_->get_map();
+          warthog::gridmap* rmapptr = jpl_->get_rmap();
+          mapptr->set_label(loc, empty);
+          // map id to rmap id
+          uint32_t x, y, rx, ry;
+          mapptr->to_unpadded_xy(loc, x, y);
+          ry = x, rx = mapptr->header_height() - y - 1;
+          sn_id_t rloc = rmapptr->to_padded_id(rx, ry);
+          rmapptr->set_label(rloc, empty);
+        }
         // this function gets called whenever a successor node is relaxed. at that
         // point we set the node currently being expanded (==current) as the 
         // parent of n and label node n with the direction of travel, 

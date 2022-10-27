@@ -1,6 +1,7 @@
 #include "gridmap_expansion_policy.h"
 #include "helpers.h"
 #include "problem_instance.h"
+#include "global.h"
 
 warthog::gridmap_expansion_policy::gridmap_expansion_policy(
 		warthog::gridmap* map, bool manhattan)
@@ -18,6 +19,10 @@ warthog::gridmap_expansion_policy::expand(warthog::search_node* current,
 	uint32_t tiles = 0;
 	uint32_t nodeid = (uint32_t)current->get_id();
 	map_->get_neighbours(nodeid, (uint8_t*)&tiles);
+
+#ifdef CNT
+  global::statis::update_gval(current);
+#endif
 
 //	#ifndef NDEBUG
 //	uint32_t cx_, cy_;

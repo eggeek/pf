@@ -48,6 +48,9 @@ class online_jump_point_locator2
 			return sizeof(this) + rmap_->mem();
 		}
 
+    inline warthog::gridmap* get_rmap() { return rmap_; }
+    inline warthog::gridmap* get_map() { return map_; }
+
 	private:
 		void
 		jump_north(

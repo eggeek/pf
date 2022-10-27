@@ -34,6 +34,9 @@ class online_jump_point_locator2_prune2
     online_jps_pruner2* jp;
     search_node* pa;
 
+    inline warthog::gridmap* get_rmap() { return rmap_; }
+    inline warthog::gridmap* get_map() { return map_; }
+
 	private:
 		void
 		jump_north(

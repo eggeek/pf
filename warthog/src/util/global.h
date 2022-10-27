@@ -7,12 +7,14 @@
 #include "gridmap.h"
 #include "pqueue.h"
 #include "search_node.h"
+#include "solution.h"
 using namespace std;
 // set global variable that can be accessed everywhere
 namespace global{
 
 extern string alg;
 extern warthog::mem::node_pool* nodepool;
+extern warthog::solution* sol;
 
 namespace statis {
 
@@ -45,7 +47,8 @@ namespace statis {
 
   extern vector<warthog::cost_t> dist;
   extern uint32_t subopt_expd;
-  extern uint32_t subopt_touch;
+  extern uint32_t subopt_gen;
+  extern uint32_t subopt_insert;
   extern uint32_t scan_cnt;
   extern vector<Log> logs;
 
@@ -53,6 +56,25 @@ namespace statis {
   extern vector<Log> logs;
 
   Log gen(uint32_t id, warthog::cost_t gval, bool subopt);
+
+  inline void init_dist(uint32_t size) {
+    dist.resize(size);
+    fill(dist.begin(), dist.end(), warthog::COST_MAX);
+  }
+
+  inline void update_subopt_insert(uint32_t id, warthog::cost_t gval) {
+    assert(dist.empty() || id < dist.size());
+    if (!dist.empty() && gval > dist[id]) 
+      subopt_insert++;
+  }
+
+  inline void update_gval(warthog::search_node* cur) {
+    warthog::sn_id_t id = cur->get_id();
+    assert(dist.empty() || id < dist.size());
+    if (!dist.empty() && dist[id] > cur->get_g()) {
+      dist[id] = cur->get_g();
+    }
+  }
 
   inline void update_subopt_expd(uint32_t id, warthog::cost_t gval) {
     assert(dist.empty() || id < dist.size());
@@ -68,22 +90,23 @@ namespace statis {
   inline void update_pruneable(warthog::search_node* cur) {
     warthog::sn_id_t pid = cur->get_parent();
     warthog::search_node* pa = pid == warthog::NO_PARENT? 
-      nullptr: nodepool->generate(pid);
+      nullptr: nodepool->get_ptr(pid);
     // parent is subopt
     if (!dist.empty() && pa != nullptr
-        && pa->get_g() > dist[pa->get_id()]) prunable++;
+        && pa->get_g() > dist[pa->get_id()]) 
+      prunable++;
   }
 
   inline void update_subopt_touch(uint32_t id, warthog::cost_t gval) {
     assert(dist.empty() || id < dist.size());
     if (!dist.empty() && gval > dist[id]) 
-      subopt_touch++;
+      subopt_gen++;
   }
 
   inline void clear() {
-    dist.clear();
+    subopt_insert = 0;
     subopt_expd = 0;
-    subopt_touch = 0;
+    subopt_gen = 0;
     scan_cnt = 0;
     prunable = 0;
   }
@@ -125,7 +148,7 @@ extern warthog::pqueue_min* open;
 
   // set gvalue on corner point
   inline void set_corner_gv(uint32_t id, warthog::cost_t g) {
-    warthog::search_node* n = nodepool->generate(id);
+    warthog::search_node* n = nodepool->get_ptr(id);
     if (n->get_search_number() != pi->instance_id_) {
       n->init(pi->instance_id_, warthog::SN_ID_MAX, warthog::INFTY, warthog::INFTY);
       n->set_g(g);

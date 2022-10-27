@@ -301,6 +301,9 @@ class flexible_astar: public warthog::search
 
                         open_->push(n);
                         sol.nodes_inserted_++;
+                        #ifdef CNT
+                        global::statis::update_subopt_insert(n->get_id(), n->get_g());
+                        #endif
 
                         #ifndef NDEBUG
                         if(pi_.verbose_)
