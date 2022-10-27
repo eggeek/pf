@@ -6,7 +6,7 @@ all: main convert extras test
 clean:
 	@-$(RM) -rf ./obj/*
 
-main: bin/warthog bin/roadhog bin/mapf
+main: bin/warthog bin/roadhog bin/mapf bin/experiment
 
 extras: bin/ch bin/fifo bin/make_cpd
 
