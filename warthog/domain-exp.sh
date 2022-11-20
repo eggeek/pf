@@ -19,34 +19,14 @@ rand_domains=(
   ./maps-randomlized/maze512
   ./maps-randomlized/rooms
 )
+rs=(0.1 0.5 1 1.5)
 
-maps=(
-  ./synthetic-diag/diag-0p.map
-  ./synthetic-diag/diag-0.1p.map
-  ./synthetic-diag/diag-0.5p.map
-  ./synthetic-diag/diag-1p.map
-  ./synthetic-diag/diag-1.5p.map
-  ./synthetic-diag/diag-10p.map
-  ./synthetic-diag/diag-20p.map
-)
-
-scens=(
-  ./synthetic-diag/diag.scen
-  ./synthetic-diag/diag.scen
-  ./synthetic-diag/diag.scen
-  ./synthetic-diag/diag.scen
-  ./synthetic-diag/diag.scen
-  ./synthetic-diag/diag.scen
-  ./synthetic-diag/diag.scen
-)
 
 algs=(
   jps2
   jps2-prune2
 )
-data_dir="./data"
 out_dir="./output2"
-sml_outdir="./small_output"
 
 function run_domain() {
   domain=$1
@@ -138,61 +118,17 @@ function suboptcnt() {
   done
 }
 
-function small_exp() {
-  gensmljobs | shuf > smljobs.sh
-  chmod u+x smljobs.sh
-  bash -x smljobs.sh
-}
-
-function small_suboptcnt() {
-  for (( i=0; i<${#maps[@]}; i++ )); do
-    mpath=${maps[$i]}
-    mname=$(basename -- ${mpath})
-    spath=${scens[$i]}
-    out_dir="small_suboptcnt"
-    mkdir -p ${out_dir}
-    cmd="./build/dev/bin/experiment ${mpath} ${spath} subcnt > ${out_dir}/$mname.log"
-    echo "$cmd"
-    eval "$cmd"
-  done
-}
-
 function clean() {
   rm -f data/*.jps+
   fd -e log . "output" --no-ignore -x rm
   fd -e log . "small_output" --no-ignore -x rm
 }
 
-function gen_small() {
-  cmd="./gen.py diag-map 512 > testcases/maps/diag-random-512.map"
-  echo $cmd
-  eval $cmd
-  cmd="./gen.py square-map 512 > testcases/maps/square-random-512.map"
-  echo $cmd
-  eval $cmd
-}
-
-function gensmljobs() {
-  rep=10
-  for (( r=0; r<rep; r++ )) {
-    for (( i=0; i<${#maps[@]}; i++ )); do
-      mpath=${maps[$i]}
-      mapname=$(basename -- $mpath)
-      spath=${scens[$i]}
-      for alg in "${algs[@]}"; do
-        outpath="${sml_outdir}/$alg/$r/"
-        mkdir -p ${outpath}
-        cmd="./build/fast/bin/warthog --scen ${spath} --map ${mpath} --alg $alg > ${outpath}/${mapname}.log"
-        echo $cmd
-      done
-    done
-  }
-}
 
 function genjobs() {
   rep=10
   for (( i=0; i<rep; i++ )) {
-    for dm in ${rand_domains[@]}; do
+    for dm in "${rand_domains[@]}"; do
       domain=$dm
       dname=$(basename -- $domain)
       for mpath in `ls ${dm}/*.map`; do
@@ -211,20 +147,23 @@ function genjobs() {
 }
 
 function gen_rand() {
-  for dm in ${domains[@]}; do
+  for dm in "${domains[@]}"; do
     for map in `ls ${dm}/*.map`; do
-      domain=$(basename ${dm})
-      outpath="./maps-randomlized/${domain}"
-      mapname=$(basename ${map} .map)
-      scenfile="./scenarios/movingai/${domain}/${mapname}.map.scen"
-      if [[ ! -e ${scenfile} ]]; then
-        echo "scenfile missing, map: ${map}"
-        continue
-      fi
-      mkdir -p $outpath
-      cmd="./gen.py rand_scen ${map} ${scenfile} > ${outpath}/${mapname}.map"
-      echo $cmd
-      eval $cmd
+      for r in "${rs[@]}"; do
+        domain=$(basename ${dm})
+        outpath="./maps-randomlized-${r}p/${domain}"
+        mapname=$(basename ${map} .map)
+        scenfile="./scenarios/movingai/${domain}/${mapname}.map.scen"
+        if [[ ! -e ${scenfile} ]]; then
+          echo "scenfile missing, map: ${map}"
+          continue
+        fi
+        mkdir -p $outpath
+        rval=$(python -c "print(${r} / 100.0)")
+        cmd="./gen.py rand_scen ${map} ${scenfile} ${rval} > ${outpath}/${mapname}.map"
+        echo $cmd
+        eval $cmd
+      done
     done
   done
 }
@@ -232,13 +171,8 @@ function gen_rand() {
 case "$1" in
   exp) exp;;
   cexp) clean && exp;;
-  sexp) small_exp;;
-  ssub) small_suboptcnt;;
-  csexp) clean && small_exp;;
   genjobs) genjobs;;
-  genjobs_sml) gensmljobs;;
   gen_rand) gen_rand ;;
-  sgen) gen_small ;;
   sub) suboptcnt;;
   subq) suboptcnt_per_query ;;
   clean) clean ;; 
