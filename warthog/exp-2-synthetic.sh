@@ -79,6 +79,52 @@ function _gen_jbos_subcnt() {
   done
 }
 
+function _gen_vary_size_jobs() {
+  rep=10
+  algs=(jps2 jps2-prune2)
+  sizes=(256 512 1024 2048)
+  dir="./synthetic-diag/vary-size"
+  outdir="./small_output/vary_size"
+  for size in "${sizes[@]}"; do
+    for alg in "${algs[@]}"; do
+      for (( i=0; i<rep; i++)) {
+        mfile="${dir}/diag-${size}.map"
+        mname="diag-${size}"
+        sfile="${dir}/diag-${size}.scen"
+        exe="./build/fast/bin/warthog"
+        outpath="${outdir}/${alg}/$i"
+        mkdir -p "${outpath}"
+        cmd="${exe} --scen ${sfile} --map ${mfile} --alg ${alg} > ${outpath}/${mname}.log"
+        echo $cmd
+      }
+    done
+  done
+}
+
+function vary_size_time() {
+  _gen_vary_size_jobs | shuf > varysize.sh
+  chmpd u+x varysize.sh
+  bash -x varysize.sh
+}
+
+function vary_size_subcnt() {
+
+  sizes=(256 512 1024 2048)
+  dir="./synthetic-diag/vary-size"
+  outdir="./small_suboptcnt/vary_size"
+  for size in "${sizes[@]}"; do
+      mfile="${dir}/diag-${size}.map"
+      mname="diag-${size}"
+      sfile="${dir}/diag-${size}.scen"
+      exe="./build/fast/bin/experiment"
+      outpath="${outdir}/${alg}/$i"
+      mkdir -p "${outpath}"
+      cmd="${exe} ${mfile} ${sfile} subcnt > ${outpath}/${mname}.log"
+      echo $cmd
+      eval $cmd
+  done
+}
+
 function vary_len_time() {
   rep=10
   algs=(jps2 jps2-prune2)
@@ -146,16 +192,19 @@ function vary_br_subcnt() {
 }
 
 function measure_time() {
-  vary_r_time 
-  vary_len_time
-  vary_br_time
+  make clean && make fast -j
+  # vary_r_time
+  # vary_len_time
+  # vary_br_time
+  vary_size_time
 }
 
 function measure_subopt() {
   make clean && make fastcnt -j
-  vary_r_subcnt
-  vary_len_subcnt
-  vary_br_subcnt
+  # vary_r_subcnt
+  # vary_len_subcnt
+  # vary_br_subcnt
+  vary_size_subcnt
 }
 
 case "$1" in
