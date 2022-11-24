@@ -266,6 +266,29 @@ def gen_scen(mapfile, num):
             print ("0 %s %d %d %d %d %d %d 0" % (mapfile, h, w, 
                 start[i][0], start[i][1], target[i][0], target[i][1]))
 
+def count_traversable(mapfile):
+    with open(mapfile, "r") as f:
+        rows = [i.strip() for i in f.readlines()[4:]]
+    mapw = len(rows[0])
+    maph = len(rows)
+    cnt = 0
+    for y in range(maph):
+        for x in range(mapw):
+            if (rows[y][x] not in obstacle_marks):
+                cnt += 1
+    return mapw, maph, cnt
+
+def domain_traversable():
+    domains = ["iron", "starcraft", "bgmaps", "dao", "street", "maze512", "rooms", "random10"]
+    dir = "./maps"
+    header = "domain,map,mapw,maph,traversable"
+    print (header)
+    for domain in domains:
+        for map in os.listdir("{}/{}/".format(dir, domain)):
+            mpath = "{}/{}/{}".format(dir, domain, map)
+            mapw, maph, cnt = count_traversable(mpath)
+            row = "{},{},{},{},{}".format(domain, map, mapw, maph, cnt)
+            print (row)
 
 def randomlize(mapfile, ratio):
     with open(mapfile, "r") as f:
@@ -473,3 +496,5 @@ if __name__ == "__main__":
     elif (sys.argv[1] == "grid2csv"):
         mfile = sys.argv[2]
         grid2csv(mfile)
+    elif (sys.argv[1] == "cnt"):
+        domain_traversable()
