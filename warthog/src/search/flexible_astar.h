@@ -340,9 +340,9 @@ class flexible_astar: public warthog::search
 					}
 
                     // update a node from the fringe
+					warthog::cost_t gval = current->get_g() + cost_to_n;
 					if(open_->contains(n))
 					{
-						warthog::cost_t gval = current->get_g() + cost_to_n;
 						if(gval < n->get_g())
 						{
 							n->relax(gval, current->get_id());
@@ -379,6 +379,33 @@ class flexible_astar: public warthog::search
 							#endif
 						}
 					}
+          // set_corner_gv may set g-value in runtime without pushing to open
+          else if (gval < n->get_g()) {
+            n->init(current->get_search_number(), current->get_id(),
+              gval,
+              gval + heuristic_->h(n->get_id(), pi_.target_id_));
+            open_->push(n);
+            sol.nodes_inserted_++;
+            #ifdef CNT
+            global::statis::update_subopt_insert(n->get_id(), n->get_g());
+            #endif
+
+            #ifndef NDEBUG
+            if(pi_.verbose_)
+            {
+                int32_t nx, ny;
+                expander_->get_xy(n->get_id(), nx, ny);
+                std::cerr
+                    << "  generating (edgecost="
+                    << cost_to_n<<") ("<< nx <<", "<< ny <<")...";
+                n->print(std::cerr);
+                std::cerr << std::endl;
+            }
+            #endif
+
+            listener_->relax_node(n);
+            continue;
+          }
 				}
 			}
 
