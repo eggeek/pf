@@ -193,17 +193,17 @@ function vary_br_subcnt() {
 
 function measure_time() {
   make clean && make fast -j
-  # vary_r_time
-  # vary_len_time
-  # vary_br_time
+  vary_r_time
+  vary_len_time
+  vary_br_time
   vary_size_time
 }
 
 function measure_subopt() {
   make clean && make fastcnt -j
-  # vary_r_subcnt
-  # vary_len_subcnt
-  # vary_br_subcnt
+  vary_r_subcnt
+  vary_len_subcnt
+  vary_br_subcnt
   vary_size_subcnt
 }
 
